@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.9 (2026-10-25)
+
+- Live bars inside herdr 0.9.5+. siga finds the real terminal from the herdr client.
+  - Kitty: herdr re-places the bar image itself, and the animator runs at 8 fps there.
+  - Ghostty: the palette value goes straight to the client's tty, because herdr swallows
+    OSC 4.
+- `siga setup` and the session context say "Kitty (through herdr)".
+
 ## 0.1.8 (2026-10-25)
 
 - The welcome bar also shows right after a fresh Ghostty install: open windows pick up

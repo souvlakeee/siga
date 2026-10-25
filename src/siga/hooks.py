@@ -227,6 +227,8 @@ def _display(text):
 def sessionstart(event):
     from siga import setup
     where = {"kitty": "Kitty", "ghostty": "Ghostty"}.get(core.detect_backend())
+    if where and os.environ.get("TERM_PROGRAM") == "herdr":
+        where += " (through herdr)"
     other = os.environ.get("TERM_PROGRAM") or "a terminal siga can't animate"
     context = RULE + (f" This window is {where}." if where else
                       f" This window is {other}: bars here stay static.")

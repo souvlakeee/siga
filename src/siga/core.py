@@ -8,6 +8,10 @@ Backends:
   ghostty  palette entry 254 (OSC 4) read by data/siga.glsl, bar = Siga font PUA glyphs
   kitty    a PNG re-uploaded under one image id, bar = kitty Unicode placeholders
   text     nothing live; the bar is a static ▰▱ string of the value at that moment
+
+Inside herdr the backend is the terminal the herdr client runs in. herdr turns kitty
+placeholders into its own image placements, so kitty frames go to the pane as usual;
+it swallows OSC 4, so ghostty's palette value goes straight to the client's tty.
 """
 import base64
 import json
@@ -95,6 +99,8 @@ def load():
 def detect_backend(env=os.environ):
     if env.get("SIGA_BACKEND"):
         return env["SIGA_BACKEND"]
+    if env.get("TERM_PROGRAM") == "herdr":
+        return herdr_host(env)[0] or "text"
     if env.get("TERM_PROGRAM") == "ghostty":
         return "ghostty"
     if env.get("KITTY_WINDOW_ID") or env.get("TERM") == "xterm-kitty":
@@ -112,7 +118,46 @@ def child_ttys(app_suffix):
                    if len(p) == 4 and p[1] in apps and p[2] != "??"})
 
 
+def herdr_host(env=os.environ):
+    """(backend, client ttys) of the terminal herdr is attached in, or (None, []).
+
+    A pane descends from the detached herdr server, not from the client, so the host
+    comes from the client processes: a `herdr` with a tty, under a kitty or ghostty app.
+    """
+    if env.get("TERM_PROGRAM") != "herdr":
+        return None, []
+    if "SIGA_HERDR_HOST" in env:
+        backend, _, ttys = env["SIGA_HERDR_HOST"].partition(":")
+        return backend or None, [t for t in ttys.split(",") if t]
+    out = subprocess.run(["ps", "-axo", "pid=,ppid=,tty=,comm="],
+                         capture_output=True, text=True).stdout
+    procs = {}
+    for line in out.splitlines():
+        f = line.split(None, 3)
+        if len(f) == 4:
+            procs[f[0]] = (f[1], f[2], f[3].strip().rsplit("/", 1)[-1])
+    found = {}
+    for ppid, tty, name in procs.values():
+        if name != "herdr" or tty == "??":
+            continue
+        for _ in range(32):
+            if ppid not in procs:
+                break
+            ppid, _, parent = procs[ppid]
+            if parent in ("kitty", "ghostty"):
+                found.setdefault(parent, []).append("/dev/" + tty)
+                break
+    backend = "kitty" if "kitty" in found else "ghostty" if "ghostty" in found else None
+    ttys = sorted(found.get(backend, []))
+    if env is os.environ:
+        os.environ["SIGA_HERDR_HOST"] = f"{backend or ''}:{','.join(ttys)}"
+    return backend, ttys
+
+
 def target_ttys(app_suffix):
+    backend, host = herdr_host()
+    if backend == "ghostty" and app_suffix.endswith("/ghostty"):
+        return host
     tty = own_tty()
     return [tty] if tty else child_ttys(app_suffix)
 
@@ -290,6 +335,8 @@ def spawn_detached(args, env=None):
 
 def animate(fps=20, idle_timeout=600):
     """Re-push kitty frames while the state is live; ghostty animates in its shader."""
+    if os.environ.get("TERM_PROGRAM") == "herdr":
+        fps = 8  # herdr re-sends every frame to its client as raw RGBA
     CACHE.mkdir(parents=True, exist_ok=True)
     pidfile = _scoped("animate.pid")
     pidfile.write_text(str(os.getpid()))

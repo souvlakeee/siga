@@ -30,7 +30,8 @@ No restart needed: `/reload-plugins` loads siga's hooks into the running session
 `/siga:setup` lists its changes (a font, a shader, a marked Ghostty config block, all
 backed up) and asks first. Kitty needs nothing. Python 3.9+, standard library only.
 
-Works in **Ghostty 1.3+** and **Kitty 0.49+**. Other terminals get a static `▰▰▰▱▱▱` bar.
+Works in **Ghostty 1.3+** and **Kitty 0.49+**, directly or inside [herdr](https://herdr.dev) 0.9.5+.
+Other terminals (and tmux, for now) get a static `▰▰▰▱▱▱` bar.
 
 ## Progress sources
 

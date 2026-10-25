@@ -51,6 +51,21 @@ your build ──► siga run / pipe / hook ──► parser ──► state fil
   same ID (`a=T,U=1,q=2`). Every placeholder on screen shows the new image at once. A
   small animator process redraws at 20 fps while a bar is running, and exits when idle.
 
+## Inside herdr
+
+herdr is a multiplexer built on libghostty: it runs each pane's terminal itself and
+redraws the result into the real terminal. A pane's processes descend from the detached
+herdr server, so siga finds the real terminal from the herdr client processes instead: a
+`herdr` with a tty, under a kitty or ghostty app.
+
+- **Kitty:** herdr understands Kitty placeholders. When siga uploads the bar image to the
+  pane, herdr stores it and re-places it on the real terminal over the placeholder cells
+  (`a=p … c=20,r=1`). siga writes to the pane as usual. herdr re-sends every frame as raw
+  RGBA, so the animator drops to 8 fps there.
+- **Ghostty:** the bar glyphs pass through herdr as text, but herdr swallows OSC 4. siga
+  writes the palette value straight to the herdr client's tty, where Ghostty's shader
+  reads it.
+
 ## Other terminals
 
 The token becomes `▰▰▰▱▱▱`, the value at the moment the message was shown.

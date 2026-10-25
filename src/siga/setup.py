@@ -188,13 +188,14 @@ def reload_terminals():
 def where():
     """One line naming the terminal we run in. Setup only touches that terminal."""
     backend = core.detect_backend()
+    via = " (through herdr)" if os.environ.get("TERM_PROGRAM") == "herdr" else ""
     if backend == "kitty":
-        return "You're in Kitty: it draws siga's bars as images and needs nothing."
+        return f"You're in Kitty{via}: it draws siga's bars as images and needs nothing."
     if backend == "ghostty":
-        return "You're in Ghostty: it needs the Siga font, the shader and a config block."
+        return f"You're in Ghostty{via}: it needs the Siga font, the shader and a config block."
     name = os.environ.get("TERM_PROGRAM") or "this terminal"
     return (f"You're in {name}: siga can't draw live bars here, so bars stay static. "
-            "Run Claude Code directly in Kitty 0.49+ or Ghostty 1.3+ (not inside tmux or herdr).")
+            "Run Claude Code in Kitty 0.49+ or Ghostty 1.3+, directly or inside herdr.")
 
 
 def welcome():

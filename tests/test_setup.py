@@ -114,6 +114,11 @@ class Output(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertIn("herdr", lines[0])
 
+    def test_herdr_on_kitty_names_both(self):
+        with mock.patch.object(setup.core, "detect_backend", return_value="kitty"), \
+             mock.patch.dict(setup.os.environ, {"TERM_PROGRAM": "herdr"}):
+            self.assertIn("Kitty (through herdr)", setup.where())
+
     def test_kitty_never_mentions_ghostty(self):
         with mock.patch.object(setup.core, "detect_backend", return_value="kitty"):
             lines = self.run_plan({})
