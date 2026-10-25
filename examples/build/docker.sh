@@ -5,5 +5,5 @@
 . "$(dirname "$0")/../_lib.sh"
 cd "$WORK"; printf 'FROM busybox\nRUN sleep 1 && echo %s\nRUN sleep 1\nRUN sleep 1\nRUN sleep 1\nRUN sleep 1\n' "$(date +%s%N)" > Dockerfile
 # >>> readme
-pbar run -- docker build --progress=plain --no-cache -t pbar-demo .
+siga run -- docker build --progress=plain --no-cache -t siga-demo .
 # <<< readme

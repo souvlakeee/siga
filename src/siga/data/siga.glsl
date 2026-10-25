@@ -1,10 +1,10 @@
-// pbar: repaints Pbar font glyphs (U+10FB00..U+10FB13) as a live segmented bar.
+// siga: repaints Siga font glyphs (U+10FB00..U+10FB13) as a live segmented bar.
 //
 // Glyph pixels carry key color (1, 17/255, (48 + 2*slot)/255), slot 0..79 across
 // the 20-cell bar, 4 slots per cell. Blending against the background scales all
 // channels, so the key is checked by ratio to R.
 //
-// The value arrives in palette entry 254 (OSC 4), written by `pbar`. The cursor
+// The value arrives in palette entry 254 (OSC 4), written by `siga`. The cursor
 // color would be less visible, but Ghostty only refreshes shader uniforms when
 // the terminal is dirty, and OSC 12 does not mark it dirty; OSC 4 does.
 // Encoded colors stay within #e0e0e0..#ffffff, near the default #e4e4e4:

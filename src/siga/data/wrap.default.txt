@@ -1,9 +1,9 @@
-# Commands the PreToolUse hook wraps with pbar. One per line: [pipe|pty] <python regex>.
+# Commands the PreToolUse hook wraps with siga. One per line: [pipe|pty] <python regex>.
 # The regex is searched in each command segment, from where the command starts
 # (after env assignments and sudo/time/nice), so anchor with ^.
-#   pipe  run in Claude's own shell, output piped through `pbar pipe` (default)
-#   pty   run on a pseudo-terminal (`pbar run --pty`): for tools that only draw progress there
-# Add your own in ~/.config/pbar/wrap.txt, same format; they are appended to these.
+#   pipe  run in Claude's own shell, output piped through `siga pipe` (default)
+#   pty   run on a pseudo-terminal (`siga run --pty`): for tools that only draw progress there
+# Add your own in ~/.config/siga/wrap.txt, same format; they are appended to these.
 
 # JavaScript
 pipe ^(npm|pnpm|yarn|bun)\s+(run\s+)?(build|test|lint|typecheck|e2e|render|export|ci)\b

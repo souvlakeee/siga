@@ -1,0 +1,46 @@
+[project]
+name = "siga"
+version = "0.1.0"
+description = "Progress bars that keep filling after they are printed: live bars inside terminal text, for Claude Code and any CLI (Ghostty, Kitty)."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Maksim Muravev" }]
+requires-python = ">=3.9"
+dependencies = []
+keywords = ["progress-bar", "terminal", "ghostty", "kitty", "claude-code", "shader"]
+classifiers = [
+    "Environment :: Console",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Terminals",
+]
+
+[project.urls]
+Homepage = "https://github.com/souvlakeee/siga"
+
+[project.scripts]
+siga = "siga.cli:entry"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    # font/build_font.py only; the built src/siga/data/Siga.ttf is committed
+    "fonttools>=4.50",
+    "pillow>=10",
+    # libraries the examples drive
+    "tqdm>=4.66",
+    "rich>=13",
+    "alive-progress>=3",
+    "click>=8",
+]
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/siga"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

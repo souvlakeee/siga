@@ -1,12 +1,13 @@
-// pbar shim for Node: report cli-progress / progress values to pbar, unchanged apps.
-// `pbar run --shim` loads this via NODE_OPTIONS=--require. It wraps the libraries
-// as they are required and sends `pbar set` at most 4 times a second. Any error
+// siga shim for Node: report cli-progress / progress values to siga, unchanged apps.
+// `siga run --shim` loads this via NODE_OPTIONS=--require. It wraps the libraries
+// as they are required and sends `siga set` at most 4 times a second. Any error
 // disables it quietly: the app must never notice.
 "use strict";
 const Module = require("module");
 const { spawn, spawnSync } = require("child_process");
 
-const BIN = process.env.PBAR_BIN;
+const PY = process.env.SIGA_PY;
+const SRC = process.env.SIGA_SRC || "";
 let last = { t: 0, v: null };
 
 function report(value) {
@@ -15,23 +16,23 @@ function report(value) {
     const now = Date.now();
     if (v < 1 && (now - last.t < 250 || v === last.v)) return;
     last = { t: now, v };
-    const args = ["set", v.toFixed(4)];
-    const opts = { stdio: "ignore", env: { ...process.env, PBAR_SRC: "shim" } };
-    // the last report waits, so 100% lands before the app exits and `pbar end` runs
-    if (v >= 1) spawnSync(BIN, args, opts);
-    else spawn(BIN, args, { ...opts, detached: true }).unref();
+    const args = ["-m", "siga", "set", v.toFixed(4)];
+    const opts = { stdio: "ignore", env: { ...process.env, SIGA_ORIGIN: "shim", PYTHONPATH: SRC } };
+    // the last report waits, so 100% lands before the app exits and `siga end` runs
+    if (v >= 1) spawnSync(PY, args, opts);
+    else spawn(PY, args, { ...opts, detached: true }).unref();
   } catch (_) {}
 }
 
 function after(proto, name, frac) {
   const orig = proto && proto[name];
-  if (typeof orig !== "function" || orig.__pbar) return;
+  if (typeof orig !== "function" || orig.__siga) return;
   const wrapped = function (...args) {
     const out = orig.apply(this, args);
     try { const v = frac(this); if (v != null && isFinite(v)) report(v); } catch (_) {}
     return out;
   };
-  wrapped.__pbar = true;
+  wrapped.__siga = true;
   proto[name] = wrapped;
 }
 
@@ -48,7 +49,7 @@ const patches = {
   },
 };
 
-if (BIN && process.env.PBAR_SHIM === "1") {
+if (PY && process.env.SIGA_SHIM === "1") {
   const load = Module._load;
   const done = new Set();
   Module._load = function (request, ...rest) {

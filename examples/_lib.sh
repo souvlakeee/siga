@@ -2,7 +2,7 @@
 # Sourced by examples/*/*.sh; the README shows only the lines between the markers.
 set -eu
 EXAMPLES=$(cd "$(dirname "$0")/.." && pwd)
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/pbar-example.XXXXXX")
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/siga-example.XXXXXX")
 _PIDS=""
 cleanup() { for p in $_PIDS; do kill "$p" 2>/dev/null || true; done; rm -rf "$WORK"; }
 trap cleanup EXIT INT TERM

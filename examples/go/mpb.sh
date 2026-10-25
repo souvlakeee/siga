@@ -5,5 +5,5 @@
 . "$(dirname "$0")/../_lib.sh"
 cd "$EXAMPLES/go/mpb"; [ -x demo ] || go build -o demo .
 # >>> readme
-pbar run --pty -- ./demo
+siga run --pty -- ./demo
 # <<< readme

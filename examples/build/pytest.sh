@@ -7,5 +7,5 @@ cd "$WORK"; for f in 1 2 3 4; do
     printf 'import time, pytest\n@pytest.mark.parametrize("i", range(10))\ndef test_slow(i):\n    time.sleep(0.1)\n' > "test_$f.py"
 done
 # >>> readme
-pbar run -- pytest -v
+siga run -- pytest -v
 # <<< readme

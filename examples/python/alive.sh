@@ -5,5 +5,5 @@
 . "$(dirname "$0")/../_lib.sh"
 cd "$EXAMPLES/python"
 # >>> readme
-pbar run --pty -- python alive_demo.py
+siga run --pty -- python alive_demo.py
 # <<< readme

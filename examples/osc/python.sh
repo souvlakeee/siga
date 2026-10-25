@@ -11,5 +11,5 @@ for i in range(0, 101, 5):
 PY
 cd "$WORK"
 # >>> readme
-pbar run -- python3 job.py
+siga run -- python3 job.py
 # <<< readme

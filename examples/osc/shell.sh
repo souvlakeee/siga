@@ -12,5 +12,5 @@ work() {
     printf '\033]9;4;0\033\\'               # clear
 }
 set -o pipefail
-work | pbar pipe; pbar end $?
+work | siga pipe; siga end $?
 # <<< readme

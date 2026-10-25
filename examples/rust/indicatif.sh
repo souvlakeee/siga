@@ -5,5 +5,5 @@
 . "$(dirname "$0")/../_lib.sh"
 cd "$EXAMPLES/rust/indicatif"; cargo build -q
 # >>> readme
-pbar run --pty -- ./target/debug/indicatif-demo
+siga run --pty -- ./target/debug/indicatif-demo
 # <<< readme

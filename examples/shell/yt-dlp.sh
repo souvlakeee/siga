@@ -5,5 +5,5 @@
 . "$(dirname "$0")/../_lib.sh"
 URL=$(serve_file 40); cd "$WORK"
 # >>> readme
-pbar run -- yt-dlp --newline --limit-rate 8M -o video.bin "$URL"
+siga run -- yt-dlp --newline --limit-rate 8M -o video.bin "$URL"
 # <<< readme

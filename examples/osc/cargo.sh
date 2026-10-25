@@ -11,5 +11,5 @@ for i in $(seq 1 24); do
     seq 1 400 | awk -v c="$i" '{ printf "pub fn f%d(x: u64) -> u64 { let v: Vec<u64> = (0..x).map(|y| y.wrapping_mul(%d) ^ %d).collect(); v.iter().sum() }\n", $1, $1 + c, c }' > "c$i/src/lib.rs"
 done; printf ']\nresolver = "2"\n[profile.dev]\nopt-level = 1\n' >> Cargo.toml
 # >>> readme
-CARGO_TERM_PROGRESS_TERM_INTEGRATION=true pbar run --pty -- cargo build
+CARGO_TERM_PROGRESS_TERM_INTEGRATION=true siga run --pty -- cargo build
 # <<< readme

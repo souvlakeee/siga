@@ -1,0 +1,38 @@
+#!/bin/sh
+# siga launcher: runs the stdlib-only siga package (src/siga) with a Python >= 3.9.
+# The interpreter is picked once, uv-managed when uv is installed (so a fresh Mac's
+# python3 stub is never needed), else any python3 >= 3.9, and the choice is cached:
+# hooks run on every tool call and must not pay for the lookup again.
+set -e
+
+self=$0
+while [ -L "$self" ]; do  # follow symlinks such as ~/.local/bin/siga
+    link=$(readlink "$self")
+    case $link in /*) self=$link ;; *) self=$(dirname "$self")/$link ;; esac
+done
+root=$(cd "$(dirname "$self")/.." && pwd -P)
+
+cache=${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/siga}
+py=$(cat "$cache/python" 2>/dev/null || true)
+if [ -z "$py" ] || [ ! -x "$py" ]; then
+    py=
+    if command -v uv >/dev/null 2>&1; then
+        # from / and with --system, so a project's .venv (which may vanish) is never chosen
+        py=$(cd / && uv python find --system '>=3.9' 2>/dev/null) ||
+            { uv python install 3.12 >/dev/null 2>&1 && py=$(cd / && uv python find --system 3.12 2>/dev/null); } || py=
+    fi
+    if [ -z "$py" ]; then
+        for c in python3 /usr/bin/python3; do
+            if "$c" -c 'import sys; sys.exit(sys.version_info < (3, 9))' >/dev/null 2>&1; then
+                py=$(command -v "$c"); break
+            fi
+        done
+    fi
+    if [ -z "$py" ]; then
+        echo "siga: needs Python 3.9+; install uv (https://docs.astral.sh/uv/) or python3" >&2
+        exit 127
+    fi
+    mkdir -p "$cache" && printf '%s\n' "$py" > "$cache/python"
+fi
+
+PYTHONPATH="$root/src${PYTHONPATH:+:$PYTHONPATH}" exec "$py" -m siga "$@"

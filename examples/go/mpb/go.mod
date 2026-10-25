@@ -1,4 +1,4 @@
-module pbar-example/mpb
+module siga-example/mpb
 
 go 1.26.5
 

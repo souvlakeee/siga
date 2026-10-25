@@ -6,5 +6,5 @@
 rsync --info=progress2 --version >/dev/null 2>&1 || skip "rsync without --info=progress2 (openrsync)"
 make_tree "$WORK/src" 10 4; cd "$WORK"
 # >>> readme
-pbar run -- rsync -a --info=progress2 --bwlimit=8m src/ dst/
+siga run -- rsync -a --info=progress2 --bwlimit=8m src/ dst/
 # <<< readme

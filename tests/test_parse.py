@@ -1,14 +1,14 @@
-"""Progress parsing against real captured output (tests/fixtures, from `pbar selftest --capture`)."""
+"""Progress parsing against real captured output (tests/fixtures, from `siga selftest --capture`)."""
 import sys
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-from pbar_parse import Cleaner, Progress, Stream  # noqa: E402
+sys.path.insert(0, str(ROOT / "src"))
+from siga.parse import Cleaner, Progress, Stream  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
-NO_PROGRESS = {"build__make_eta"}  # prints nothing to read; pbar uses the learned ETA
+NO_PROGRESS = {"build__make_eta"}  # prints nothing to read; siga uses the learned ETA
 
 
 def replay(data, chunk=97):

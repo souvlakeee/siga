@@ -1,8 +1,8 @@
-"""pbar shim for Python: report tqdm / rich / click progress to pbar, unchanged apps.
+"""siga shim for Python: report tqdm / rich / click progress to siga, unchanged apps.
 
-`pbar run --shim -- python app.py` puts this directory on PYTHONPATH. Python then
+`siga run --shim -- python app.py` puts this directory on PYTHONPATH. Python then
 imports this file at startup; it patches the progress libraries as they get
-imported and sends `pbar set` (at most 4 times a second). Any error disables it
+imported and sends `siga set` (at most 4 times a second). Any error disables it
 quietly: the app must never notice.
 """
 import builtins
@@ -11,7 +11,8 @@ import subprocess
 import sys
 import time
 
-_BIN = os.environ.get("PBAR_BIN")
+_PY = os.environ.get("SIGA_PY")
+_SRC = os.environ.get("SIGA_SRC", "")
 _last = [0.0, None]
 _patched = set()
 
@@ -23,18 +24,18 @@ def _report(value):
         if value < 1.0 and (now - _last[0] < 0.25 or value == _last[1]):
             return
         _last[:] = [now, value]
-        # the last report waits, so 100% lands before the app exits and `pbar end` runs
+        # the last report waits, so 100% lands before the app exits and `siga end` runs
         run = subprocess.run if value >= 1.0 else subprocess.Popen
-        run([_BIN, "set", "%.4f" % value], stdin=subprocess.DEVNULL,
+        run([_PY, "-m", "siga", "set", "%.4f" % value], stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            env={**os.environ, "PBAR_SRC": "shim"})
+            env={**os.environ, "SIGA_ORIGIN": "shim", "PYTHONPATH": _SRC})
     except Exception:
         pass
 
 
 def _after(cls, name, compute):
     orig = getattr(cls, name, None)
-    if orig is None or getattr(orig, "_pbar", False):
+    if orig is None or getattr(orig, "_siga", False):
         return
 
     def wrapper(self, *a, **kw):
@@ -46,7 +47,7 @@ def _after(cls, name, compute):
         except Exception:
             pass
         return result
-    wrapper._pbar = True
+    wrapper._siga = True
     setattr(cls, name, wrapper)
 
 
@@ -91,5 +92,5 @@ def _import(name, *args, **kwargs):
     return module
 
 
-if _BIN and os.environ.get("PBAR_SHIM") == "1":
+if _PY and os.environ.get("SIGA_SHIM") == "1":
     builtins.__import__ = _import

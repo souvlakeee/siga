@@ -1,11 +1,11 @@
-"""pbar core: one progress state per terminal window, pushed to whichever terminal draws the bars.
+"""siga core: one progress state per terminal window, pushed to whichever terminal draws the bars.
 
 Each caller finds the tty of the window it runs in (walking up its parent processes)
 and keeps its own state file, so sessions in different windows don't overwrite each
 other. Without a tty in the ancestry, every window of the terminal app is updated.
 
 Backends:
-  ghostty  palette entry 254 (OSC 4) read by shader/pbar.glsl, bar = Pbar font PUA glyphs
+  ghostty  palette entry 254 (OSC 4) read by data/siga.glsl, bar = Siga font PUA glyphs
   kitty    a PNG re-uploaded under one image id, bar = kitty Unicode placeholders
   text     nothing live; the bar is a static ▰▱ string of the value at that moment
 """
@@ -19,8 +19,10 @@ import tempfile
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "pbar"
+PKG = Path(__file__).resolve().parent
+DATA = PKG / "data"
+SRC = PKG.parent  # what PYTHONPATH needs for `python -m siga`
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "siga"
 HISTORY_FILE = CACHE / "history.json"
 
 CELLS = 20
@@ -31,9 +33,9 @@ LIVE = ("run", "busy")
 # ---------------------------------------------------------------- state
 
 def own_tty():
-    """The tty of the window this process runs in, or None (cached in PBAR_TTY for children)."""
-    if "PBAR_TTY" in os.environ:
-        return os.environ["PBAR_TTY"] or None
+    """The tty of the window this process runs in, or None (cached in SIGA_TTY for children)."""
+    if "SIGA_TTY" in os.environ:
+        return os.environ["SIGA_TTY"] or None
     out = subprocess.run(["ps", "-axo", "pid=,ppid=,tty="],
                          capture_output=True, text=True, check=True).stdout
     procs = {}
@@ -50,7 +52,7 @@ def own_tty():
             tty = "/dev/" + t
             break
         pid = ppid
-    os.environ["PBAR_TTY"] = tty or ""
+    os.environ["SIGA_TTY"] = tty or ""
     return tty
 
 
@@ -71,8 +73,8 @@ def save(value, state):
     path = state_file()
     tmp = path.with_suffix(".tmp")
     rec = {"value": value, "state": state, "time": time.time()}
-    if os.environ.get("PBAR_SRC"):
-        rec["src"] = os.environ["PBAR_SRC"]
+    if os.environ.get("SIGA_ORIGIN"):  # "shim": the value came from inside the app
+        rec["src"] = os.environ["SIGA_ORIGIN"]
     tmp.write_text(json.dumps(rec))
     tmp.replace(path)
 
@@ -85,8 +87,8 @@ def load():
 
 
 def detect_backend(env=os.environ):
-    if env.get("PBAR_BACKEND"):
-        return env["PBAR_BACKEND"]
+    if env.get("SIGA_BACKEND"):
+        return env["SIGA_BACKEND"]
     if env.get("TERM_PROGRAM") == "ghostty":
         return "ghostty"
     if env.get("KITTY_WINDOW_ID") or env.get("TERM") == "xterm-kitty":
@@ -125,7 +127,7 @@ def write_tty(tty, data):
 # ---------------------------------------------------------------- ghostty
 
 class Ghostty:
-    """Palette entry 254 carries value + state to the shader (see shader/pbar.glsl)."""
+    """Palette entry 254 carries value + state to the shader (see data/siga.glsl)."""
     PALETTE_INDEX = 254
 
     @staticmethod
@@ -185,7 +187,7 @@ class Kitty:
 
     @classmethod
     def bar(cls, st):
-        diac = [int(x, 16) for x in (ROOT / "kitty_diacritics.txt").read_text().split()]
+        diac = [int(x, 16) for x in (DATA / "kitty_diacritics.txt").read_text().split()]
         head = chr(0x10EEEE) + chr(diac[0]) + chr(diac[0]) + chr(diac[cls.MSB])
         return head + chr(0x10EEEE) * (CELLS - 1)
 
@@ -269,10 +271,15 @@ def start_animator():
         return
     except (OSError, ValueError):
         pass
-    subprocess.Popen([sys.executable, str(ROOT / "pbar"), "animate"],
+    spawn_detached(["animate"], {"SIGA_BACKEND": "kitty", "SIGA_TTY": own_tty() or ""})
+
+
+def spawn_detached(args, env=None):
+    """Run `python -m siga <args>` in the background, detached from this process."""
+    subprocess.Popen([sys.executable, "-m", "siga", *args],
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True,
-                     env={**os.environ, "PBAR_BACKEND": "kitty", "PBAR_TTY": own_tty() or ""})
+                     env={**os.environ, "PYTHONPATH": str(SRC), **(env or {})})
 
 
 def animate(fps=20, idle_timeout=600):
@@ -312,11 +319,11 @@ class Text:
 
 
 class Record:
-    """Appends every push to $PBAR_RECORD (JSONL); used by tests and `pbar selftest`."""
+    """Appends every push to $SIGA_RECORD (JSONL); used by tests and `siga selftest`."""
     bar = Text.bar
 
     def apply(self, value, state):
-        path = os.environ.get("PBAR_RECORD")
+        path = os.environ.get("SIGA_RECORD")
         if path:
             with open(path, "a") as f:
                 f.write(json.dumps({"t": round(time.time(), 3), "value": round(value, 4), "state": state}) + "\n")
@@ -387,14 +394,14 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
     step/steps: a regex counting a custom script's steps, and their total (learned
     from the previous run of the same command when not given).
     """
-    from pbar_parse import Cleaner, Progress, Stream
+    from siga.parse import Cleaner, Progress, Stream
     if step and not steps and key:
         steps = history_get("steps:" + key)
     prog = Progress(step=step, steps=int(steps) if steps else None)
     stream = Stream(prog)
     cleaner = Cleaner() if clean else None
     eta = history_get(key) if key else None
-    tee = open(os.environ["PBAR_TEE"], "ab") if os.environ.get("PBAR_TEE") else None
+    tee = open(os.environ["SIGA_TEE"], "ab") if os.environ.get("SIGA_TEE") else None
     t0 = time.time()
     last_push, last_val = 0.0, None
     push(0.0, "run") if eta else push(0.0, "busy")

@@ -1,4 +1,4 @@
-module pbar-example/schollz
+module siga-example/schollz
 
 go 1.26.5
 

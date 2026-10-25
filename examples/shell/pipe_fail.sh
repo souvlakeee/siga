@@ -7,6 +7,6 @@ build() { for i in $(seq 1 10); do echo "[$i/20] compiling"; sleep 0.1; done; ec
 set +e   # _lib.sh runs with set -e; a README reader's shell does not
 # >>> readme
 set -o pipefail
-build 2>&1 | pbar pipe; pbar end $?   # exits 3, bar ends red
+build 2>&1 | siga pipe; siga end $?   # exits 3, bar ends red
 # <<< readme
 [ $? -eq 3 ]

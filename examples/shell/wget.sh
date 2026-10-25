@@ -5,5 +5,5 @@
 . "$(dirname "$0")/../_lib.sh"
 URL=$(serve_file 40); cd "$WORK"
 # >>> readme
-pbar run -- wget --limit-rate=8m --progress=bar:force -O big.bin "$URL"
+siga run -- wget --limit-rate=8m --progress=bar:force -O big.bin "$URL"
 # <<< readme

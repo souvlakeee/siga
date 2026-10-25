@@ -9,5 +9,5 @@ for s in bump sync build restart verify; do echo "==> $s"; sleep 0.6; echo "    
 SH
 chmod +x "$WORK/deploy.sh"; cd "$WORK"
 # >>> readme
-pbar run --step '^==> ' --steps 5 -- ./deploy.sh
+siga run --step '^==> ' --steps 5 -- ./deploy.sh
 # <<< readme

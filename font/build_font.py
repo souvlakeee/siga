@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build Pbar.ttf: 20 full-cell sbix glyphs whose colors encode bar position.
+"""Build Siga.ttf: 20 full-cell sbix glyphs whose colors encode bar position.
 
 Each glyph is split into STRIPES vertical stripes. Stripe slot s = cell*STRIPES + k
 is painted with key color (0xFF, KEY_G, KEY_B0 + 2*s). The shader recovers s from
@@ -23,8 +23,8 @@ from fontTools.ttLib.tables.sbixGlyph import Glyph as SbixGlyph
 from fontTools.ttLib.tables.sbixStrike import Strike
 from PIL import Image
 
-FAMILY = "Pbar"
-PS_NAME = "Pbar-Regular"
+FAMILY = "Siga"
+PS_NAME = "Siga-Regular"
 FIRST_CP = 0x10FB00
 CELLS = 20
 STRIPES = 4
@@ -112,6 +112,6 @@ def build(out: Path):
 
 
 if __name__ == "__main__":
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).with_name("Pbar.ttf")
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "src" / "siga" / "data" / "Siga.ttf"
     build(out)
     print(out)

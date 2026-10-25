@@ -1,4 +1,4 @@
-module pbar-example/pb
+module siga-example/pb
 
 go 1.26.5
 
