@@ -53,12 +53,11 @@ class Welcome(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_line_per_terminal(self):
-        cases = [("kitty", False, "Try it"), ("ghostty", False, "Try it"),
-                 ("ghostty", True, "new Ghostty window"), ("text", False, "in Ghostty or Kitty")]
+        cases = [("kitty", "Try it"), ("ghostty", "Try it"), ("text", "in Ghostty or Kitty")]
         with mock.patch.dict(setup.os.environ, {"CLAUDECODE": ""}):
-            for backend, font_new, expect in cases:
+            for backend, expect in cases:
                 with mock.patch.object(setup.core, "detect_backend", return_value=backend):
-                    self.assertIn(expect, setup.welcome(font_new), backend)
+                    self.assertIn(expect, setup.welcome(), backend)
         self.assertFalse(setup.core.WELCOME.exists())
 
     def test_claude_session_gets_the_bar_once(self):
@@ -92,6 +91,12 @@ class Welcome(unittest.TestCase):
         self.assertIn("herdr can't show a live bar", out.getvalue())
         self.assertFalse(setup.core.WELCOME.exists())
 
+    def test_demo_help_does_not_crash(self):
+        from siga import cli
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(cli.main(["demo", "--help"]), 0)
+        self.assertIn("usage", out.getvalue())
+
 
 class Output(unittest.TestCase):
     def run_plan(self, env):
@@ -114,6 +119,17 @@ class Output(unittest.TestCase):
             lines = self.run_plan({})
         self.assertNotIn("Ghostty", " ".join(lines))
         self.assertEqual(lines[-1], "WELCOME")
+
+    def test_apply_does_not_repeat_the_terminal_line(self):
+        out = io.StringIO()
+        with mock.patch.object(setup.core, "detect_backend", return_value="ghostty"), \
+             mock.patch.object(setup, "plan", return_value=[("copy font  /x", lambda: None)]), \
+             mock.patch.object(setup, "reload_terminals", return_value=1), \
+             mock.patch.object(setup, "welcome", return_value="WELCOME"), \
+             contextlib.redirect_stdout(out):
+            setup.main(["--apply"])
+        self.assertNotIn("You're in", out.getvalue())
+        self.assertEqual(out.getvalue().splitlines()[-1], "WELCOME")
 
 
 if __name__ == "__main__":

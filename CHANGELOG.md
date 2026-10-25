@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 (2026-10-25)
+
+- The welcome bar also shows right after a fresh Ghostty install: open windows pick up
+  the new font after the config reload, so no new window is needed.
+- `siga setup --apply` no longer repeats the terminal line from `--plan`.
+- `siga demo --help` prints usage instead of crashing.
+
 ## 0.1.7 (2026-10-25)
 
 - Terminals without live bars (herdr, tmux, Terminal.app) get one line that names them,

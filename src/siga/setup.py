@@ -197,11 +197,9 @@ def where():
             "Run Claude Code directly in Kitty 0.49+ or Ghostty 1.3+ (not inside tmux or herdr).")
 
 
-def welcome(font_new=False):
-    """The last line of setup. Arms the welcome bar when this window can draw one now."""
+def welcome():
+    """The last line of setup. Arms the welcome bar when this window can draw one."""
     backend = core.detect_backend()
-    if backend == "ghostty" and font_new:
-        return "Open a new Ghostty window (it loads the new font), then run `siga demo` there."
     if backend not in ("ghostty", "kitty"):
         return "Run `siga demo` in Ghostty or Kitty to see a live bar."
     if os.environ.get("CLAUDECODE"):
@@ -223,7 +221,8 @@ def main(args):
     steps = plan()
     if "--check" in args:
         return 1 if steps else 0
-    print(where())
+    if "--apply" not in args:
+        print(where())
     if not steps:
         if core.detect_backend() == "ghostty":
             print("siga is set up: the font, shader and Ghostty config are in place.")
@@ -234,11 +233,10 @@ def main(args):
         print("siga setup would:\n" + "\n".join(f"  {i + 1}. {d}" for i, (d, _) in enumerate(steps)))
         print("\nRun `siga setup --apply` to make these changes.")
         return 0
-    font_new = any(d.startswith("copy font") for d, _ in steps)
     for desc, fn in steps:
         fn()
         print("done: " + desc.splitlines()[0].rstrip(":"))
     if reload_terminals():
-        print("Ghostty reloaded. A newly installed font is picked up by new Ghostty windows.")
-    print(welcome(font_new))
+        print("Ghostty reloaded its config; open windows pick up the font.")
+    print(welcome())
     return 0

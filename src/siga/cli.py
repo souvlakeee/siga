@@ -133,7 +133,11 @@ def main(argv):
     elif cmd == "demo":
         now = "--now" in args
         args = [a for a in args if a != "--now"]
-        seconds = float(args[0]) if args else 4.0
+        try:
+            seconds = float(args[0]) if args else 4.0
+        except ValueError:
+            print("usage: siga demo [seconds]   fill a bar from 0 to 100% (default 4 s)")
+            return 0 if args[0] in ("-h", "--help") else 2
         if core.detect_backend() == "text":
             name = os.environ.get("TERM_PROGRAM") or "this terminal"
             print(f"siga demo: {name} can't show a live bar. "
