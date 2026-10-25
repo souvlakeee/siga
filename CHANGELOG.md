@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 (2026-10-25)
+
+- The SessionStart rule now tells Claude to use `siga run` for commands the hook doesn't
+  wrap, and to load the siga:siga skill.
+- Path-prefixed tools such as `.venv/bin/pip` and `./node_modules/.bin/vite` are wrapped
+  automatically.
+- Shorter README.
+
 ## 0.1.1 (2026-10-25)
 
 - `/siga:setup` no longer crashes Ghostty on macOS. The config reload sent signal 12,

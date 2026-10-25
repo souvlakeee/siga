@@ -35,7 +35,9 @@ RULE = (
     "siga draws live progress bars in this terminal. Before a long build, test, download or "
     "render, write the token ⟦bar⟧ once, on its own indented line with a label (`  build ⟦bar⟧`), "
     "in the message that starts the job; it fills by itself. Never write it twice for one job, "
-    "never post progress updates or paste bar glyphs, and report the result once at the end."
+    "never post progress updates or paste bar glyphs, and report the result once at the end. "
+    "Commands the hook does not wrap: run them as `siga run -- <cmd>` (`--pty` if the tool only "
+    "draws a bar on a terminal). Load the siga:siga skill before any long job for the full table."
 )
 
 
@@ -99,6 +101,7 @@ def segment_heads(command):
         while words and (ASSIGN.fullmatch(words[0]) or words[0] in PREFIXES):
             words.pop(0)
         if words:
+            words[0] = words[0].rsplit("/", 1)[-1]  # .venv/bin/pip matches the pip rule
             heads.append(" ".join(words))
     return heads
 

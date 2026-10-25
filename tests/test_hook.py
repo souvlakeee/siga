@@ -18,6 +18,9 @@ class Decide(unittest.TestCase):
             ("git clone https://x/repo.git", "pipe"),
             ("pip install -r requirements.txt", "pty"),
             ("make -j8 | grep -E \"error|warn\"", "pipe"),
+            (".venv/bin/pip install --no-cache-dir .", "pty"),
+            ("cd web && ./node_modules/.bin/vite build", "pipe"),
+            ("/opt/homebrew/bin/cargo build --release", "pty"),
         ]:
             self.assertEqual(hook.decide(cmd), mode, cmd)
 

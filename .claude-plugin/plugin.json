@@ -1,6 +1,6 @@
 {
   "name": "siga",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Progress bars that keep filling after they are printed. Claude writes ⟦bar⟧ once; Ghostty and Kitty draw a live bar there while builds, tests and downloads run.",
   "author": { "name": "Maksim Muravev", "url": "https://github.com/souvlakeee" },
   "homepage": "https://github.com/souvlakeee/siga",
