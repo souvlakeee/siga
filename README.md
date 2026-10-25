@@ -5,12 +5,7 @@
 <p align="center"><b>Progress bars that keep filling after they are printed.</b><br>
 <i>Siga-siga</i> means "slowly-slowly" in Cyprus. Your build can take its time; the bar keeps up.</p>
 
-**Without siga.** Asked to build [bat](https://github.com/sharkdp/bat), Claude starts `cargo build`
-in the background and polls a file. You see nothing until it ends.
-
-<a href="docs/media/before.mp4"><img src="docs/media/before.gif" width="900" alt="Without siga: Claude backgrounds cargo build and polls a file; no progress is visible"></a>
-
-**With siga.** Same prompt, same 223 crates. One bar, written once, fills in place.
+Claude builds [bat](https://github.com/sharkdp/bat) (223 crates). One bar, written once, fills in place. (1.5× speed)
 
 <a href="docs/media/after.mp4"><img src="docs/media/after.gif" width="900" alt="With siga: a bar under Claude's message fills while cargo compiles, then turns green"></a>
 
