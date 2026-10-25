@@ -11,6 +11,7 @@
       .lbl { font-size: 12px; fill: #8b949e; }
       .lblb { font-size: 12px; fill: #e6edf3; }
       .hook { font-size: 11px; fill: #d2a8ff; }
+      .font { font-size: 10.5px; letter-spacing: .04em; fill: #6e7681; }
       .panel { fill: #161b22; stroke: #30363d; stroke-width: 1; }
       .wire { stroke: #484f58; stroke-width: 1.5; fill: none; }
       .cell { fill: #21262d; }
@@ -71,12 +72,13 @@
     </g>
     <rect clip-path="url(#progress)" mask="url(#cellmask)" x="0" y="0" width="238" height="18" fill="url(#fill)"/>
   </g>
+  <text x="596" y="163" class="font">Siga font · U+10FB00…13</text>
 
   <!-- top wire: MessageDisplay hook -->
   <path d="M384,115 H494" class="wire" marker-end="url(#arrow)"/>
   <text x="439" y="104" text-anchor="middle" class="hook">MessageDisplay</text>
   <text x="439" y="134" text-anchor="middle" class="lbl">token →</text>
-  <text x="439" y="149" text-anchor="middle" class="lbl">20 cells</text>
+  <text x="439" y="149" text-anchor="middle" class="lbl">20 glyphs</text>
 
   <!-- bottom left: the job -->
   <text x="40" y="262" class="tag">THE JOB</text>
@@ -91,7 +93,7 @@
   <rect x="500" y="274" width="352" height="136" rx="8" class="panel"/>
   <text x="520" y="312" class="key">reads</text><text x="600" y="312">12/40 · 45% · ETA</text>
   <text x="520" y="346" class="key">Ghostty</text><text x="600" y="346">OSC 4 → GPU shader</text>
-  <text x="520" y="370" class="key">Kitty</text><text x="600" y="370">PNG → placeholder</text>
+  <text x="520" y="370" class="key">Kitty</text><text x="600" y="370">PNG → U+10EEEE cells</text>
   <text x="520" y="394" class="key">herdr</text><text x="600" y="394" class="dim">relays both</text>
 
   <!-- bottom wire: PreToolUse hook -->

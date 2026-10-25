@@ -37,8 +37,21 @@ No restart needed: `/reload-plugins` loads siga's hooks into the running session
 `/siga:setup` lists its changes (a font, a shader, a marked Ghostty config block, all
 backed up) and asks first. Kitty needs nothing. Python 3.9+, standard library only.
 
-Works in **Ghostty 1.3+** and **Kitty 0.49+**, directly or inside [herdr](https://herdr.dev) 0.9.5+.
-Other terminals (and tmux, for now) get a static `▰▰▰▱▱▱` bar.
+## Where it works
+
+| Terminal | Claude Code | OpenCode | Codex |
+|---|---|---|---|
+| Ghostty 1.3+ | ✅ | TBD | TBD |
+| Kitty 0.49+ | ✅ | TBD | TBD |
+| [herdr](https://herdr.dev) 0.9.5+ in Kitty | ✅ | TBD | TBD |
+| herdr 0.9.5+ in Ghostty | 🧪 | TBD | TBD |
+| tmux, zellij | ▰▱ TBD | TBD | TBD |
+| WezTerm, iTerm2 | ▰▱ TBD | TBD | TBD |
+| Anything else | ▰▱ | TBD | TBD |
+
+✅ live bar · 🧪 built, not yet seen live · ▰▱ static bar · TBD not built yet.
+Tested on macOS. Linux should work but is untested; Windows is TBD. Want your setup in
+the table? [Open an issue](https://github.com/souvlakeee/siga/issues).
 
 ## Progress sources
 
@@ -113,7 +126,6 @@ Details: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
 ## Limitations
 
 - One bar per terminal window; parallel jobs share it.
-- Tested on macOS; Linux is untested.
 - `siga off` / `siga on` pause the hooks; `siga setup --remove` uninstalls.
 
 ## Thanks
