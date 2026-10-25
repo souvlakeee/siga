@@ -1,9 +1,17 @@
-<p align="center"><img src=".claude-plugin/icon.png" width="96" alt=""></p>
+<img src="docs/media/siga-siga.jpg" align="left" width="250" alt="An old Cypriot man resting in the shade by a blue shutter, a coffee on the table and a cat asleep at his feet">
 
-<h1 align="center">siga</h1>
+# siga
 
-<p align="center"><b>Progress bars that keep filling after they are printed.</b><br>
-<i>Siga-siga</i> means "slowly-slowly" in Cyprus. Your build can take its time; the bar keeps up.</p>
+**Progress bars that keep filling after they are printed.**
+
+*Σιγά-σιγά* (siga-siga) is how Cyprus says "slowly, slowly", and how it lives. Nobody
+rushes the coffee, the afternoon or the man in the shade. Things get done in their own
+time, and that's fine, as long as you can see them getting done.
+
+siga brings that to your terminal. Claude starts the build and writes one bar. No logs to
+watch, no "is it done yet?". You glance over, see how far it is, and finish your coffee.
+
+<br clear="left">
 
 Claude builds [bat](https://github.com/sharkdp/bat) (223 crates). One bar, written once, fills in place. (1.5× speed)
 
