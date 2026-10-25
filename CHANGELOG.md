@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5 (2026-10-25)
+
+- The welcome bar no longer depends on Claude: `siga setup` arms it, and the MessageDisplay
+  hook adds `welcome ⟦bar⟧` under Claude's next message and fills it right then.
+- `siga setup` touches only the terminal it runs in. In Kitty there is nothing to apply
+  and nothing to ask; Ghostty steps appear only in a Ghostty window.
+- `/siga:setup` is shorter: Claude never restates output or claims a bar filled.
+- The siga:siga skill is hidden from the `/` menu (`user-invocable: false`).
+
 ## 0.1.4 (2026-10-25)
 
 - `siga demo [seconds]` fills a bar from 0 to 100% (default 4 s).

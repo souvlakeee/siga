@@ -1,5 +1,6 @@
 ---
 name: siga
+user-invocable: false
 description: Show a live progress bar for long-running work (builds, tests, downloads, renders, deploys, data jobs) in Ghostty or Kitty. Use before starting any command or job that will take more than a few seconds, and when wiring progress into scripts with siga run, siga pipe, --pty, --shim, --step or siga set.
 ---
 

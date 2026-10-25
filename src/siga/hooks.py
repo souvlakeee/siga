@@ -22,6 +22,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from siga import core
@@ -182,6 +183,10 @@ def messagedisplay(event):
     except OSError:
         held = ""
     text = held + event.get("delta", "")
+    if event.get("final") and _take_welcome():
+        # the welcome bar fills from the moment it appears, not before
+        text += "\n\n  welcome " + TOKEN
+        core.spawn_detached(["demo"])
     if TOKEN[0] not in text:
         return _display(text) if held else None
     keep = ""
@@ -201,6 +206,16 @@ def messagedisplay(event):
             # a placeholder shows nothing until this window has the image
             core.spawn_detached(["refresh"])
     return _display(text)
+
+
+def _take_welcome(max_age=300):
+    """True once after `siga setup` armed a welcome bar (and not if it went stale)."""
+    try:
+        armed = float(core.WELCOME.read_text() or 0)
+        core.WELCOME.unlink()
+    except (OSError, ValueError):
+        return False
+    return time.time() - armed < max_age
 
 
 def _display(text):

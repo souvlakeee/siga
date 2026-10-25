@@ -6,9 +6,10 @@
   siga setup --remove   undo them
   siga setup --check    exit 1 if anything is missing (used by the SessionStart hook)
 
-Only what this machine needs is installed: Ghostty needs the Siga font and the shader. The shader is copied to a stable path,
+Setup only touches the terminal it runs in. Kitty needs nothing: its bars are images.
+Ghostty needs the Siga font and the shader. The shader is copied to a stable path,
 because Ghostty's config takes an absolute path and a Claude Code plugin's own
-directory changes on every update. Kitty needs nothing: its bars are images.
+directory changes on every update.
 Older pbar installs (the project's former name) are cleaned up on --apply.
 """
 import os
@@ -43,6 +44,10 @@ def ghostty_config():
         if c.exists() and c.read_text().strip():
             return c
     return candidates[0]
+
+
+def _read(path):
+    return path.read_text() if path.exists() else ""
 
 
 def ghostty_present():
@@ -88,7 +93,7 @@ def plan():
     """[(description, apply_fn)] for everything not yet in place."""
     steps = []
     font = font_dest()
-    if ghostty_present():
+    if core.detect_backend() == "ghostty":
         if not _same(core.DATA / "Siga.ttf", font):
             steps.append((f"copy font  {font}", lambda: _copy(core.DATA / "Siga.ttf", font)))
         if not _same(core.DATA / "siga.glsl", SHADER):
@@ -192,23 +197,27 @@ def reload_terminals():
 
 
 def where():
-    """One line naming the terminal we run in, and what it needs."""
+    """One line naming the terminal we run in. Setup only touches that terminal."""
     backend = core.detect_backend()
     if backend == "kitty":
         return "You're in Kitty: it draws siga's bars as images and needs nothing."
     if backend == "ghostty":
         return "You're in Ghostty: it needs the Siga font, the shader and a config block."
-    return "This terminal shows a static bar; live bars need Ghostty 1.3+ or Kitty 0.49+."
+    return "This terminal shows a static bar. Run /siga:setup in Ghostty 1.3+ or Kitty 0.49+."
 
 
 def welcome(font_new=False):
-    """The last line of setup: how to see a bar fill right now."""
+    """The last line of setup. Arms the welcome bar when this window can draw one now."""
     backend = core.detect_backend()
     if backend == "ghostty" and font_new:
         return "Open a new Ghostty window (it loads the new font), then run `siga demo` there."
-    if backend in ("ghostty", "kitty"):
-        return "Try it: `siga demo` fills a bar for 4 seconds."
-    return "Run `siga demo` in Ghostty or Kitty to see a live bar."
+    if backend not in ("ghostty", "kitty"):
+        return "Run `siga demo` in Ghostty or Kitty to see a live bar."
+    if os.environ.get("CLAUDECODE"):
+        core.CACHE.mkdir(parents=True, exist_ok=True)
+        core.WELCOME.write_text(str(time.time()))
+        return "A welcome bar fills under Claude's next message."
+    return "Try it: `siga demo` fills a bar for 4 seconds."
 
 
 def main(args):
@@ -226,14 +235,14 @@ def main(args):
         return 1 if steps else 0
     print(where())
     if not steps:
-        print("Nothing to set up." if not ghostty_present()
-              else "siga is set up: the font, shader and Ghostty config are in place.")
+        if core.detect_backend() == "ghostty":
+            print("siga is set up: the font, shader and Ghostty config are in place.")
+        elif ghostty_present() and BEGIN not in _read(ghostty_config()):
+            print("Ghostty is installed too: run /siga:setup in a Ghostty window to set it up there.")
         print(welcome())
         return 0
     if "--apply" not in args:
-        lead = "siga setup would:" if core.detect_backend() == "ghostty" \
-            else "Ghostty is also installed. For live bars there, siga setup would:"
-        print(lead + "\n" + "\n".join(f"  {i + 1}. {d}" for i, (d, _) in enumerate(steps)))
+        print("siga setup would:\n" + "\n".join(f"  {i + 1}. {d}" for i, (d, _) in enumerate(steps)))
         print("\nRun `siga setup --apply` to make these changes.")
         return 0
     font_new = any(d.startswith("copy font") for d, _ in steps)
