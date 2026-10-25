@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""pbar: live progress bars that keep filling after they are printed.
+
+  pbar set <0..1 | NN% | N/M>   running, at that fraction
+  pbar busy                     running, no known fraction
+  pbar done | fail              final state; every bar freezes on it
+  pbar end <exit-code>          done if 0, else fail; exits with that code
+  pbar clear                    empty bars
+  pbar bar                      print the bar string for this terminal
+  pbar refresh                  re-push the last state (new windows, restarts)
+  pbar status                   print the last state
+  pbar run [--pty] [--shim] -- <cmd...>
+                                run cmd, track its output, end with its exit code;
+                                --pty for tools that only draw progress on a terminal
+                                (output is cleaned to plain lines), --shim to read
+                                tqdm/rich/click/cli-progress values directly
+  pbar pipe [-k KEY]            copy stdin to stdout, tracking progress
+  --step RX [--steps N]         (run, pipe) for custom scripts: a line matching RX starts
+                                the next step; N is learned from the last run if omitted
+  pbar selftest [name] [--network] [--capture]
+                                run examples/ under a recorder and check every bar
+  pbar animate                  (internal) kitty frame loop
+
+One global value: every bar on screen shows the same state. Progress comes from
+N/M counts, NN% or ffmpeg time= in the output; without them, from how long the
+same command (KEY) took before, or a busy sweep the first time.
+"""
+import os
+import select
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pbar_core as core  # noqa: E402
+
+
+def fd_reader(fd):
+    def read(timeout):
+        ready, _, _ = select.select([fd], [], [], timeout)
+        if not ready:
+            return None
+        return os.read(fd, 65536)
+    return read
+
+
+_reader_gone = False
+
+
+def stdout_writer(chunk):
+    # a reader like `head -1` may close early; keep consuming and tracking quietly
+    global _reader_gone
+    if chunk and not _reader_gone:
+        try:
+            os.write(sys.stdout.fileno(), chunk)
+        except BrokenPipeError:
+            _reader_gone = True
+
+
+def parse_opts(args):
+    opts = {"pty": False, "shim": False, "key": None, "step": None, "steps": None, "rest": []}
+    args = list(args)
+    while args and args[0].startswith("-") and args[0] != "--":
+        flag = args.pop(0)
+        if flag == "--pty":
+            opts["pty"] = True
+        elif flag == "--shim":
+            opts["shim"] = True
+        elif flag in ("-k", "--key", "--step", "--steps") and args:
+            name = {"-k": "key", "--key": "key"}.get(flag, flag[2:])
+            opts[name] = args.pop(0)
+        else:
+            print(f"pbar: unknown option {flag}", file=sys.stderr)
+            return None
+    if args and args[0] == "--":
+        args = args[1:]
+    opts["rest"] = args
+    return opts
+
+
+def shim_env():
+    """Env that loads the progress-library shims into Python and Node children."""
+    root = Path(__file__).resolve().parent / "shims"
+    py = str(root / "python")
+    node = f"--require {root / 'node' / 'pbar.cjs'}"
+    return {
+        "PYTHONPATH": os.pathsep.join(filter(None, [py, os.environ.get("PYTHONPATH")])),
+        "NODE_OPTIONS": " ".join(filter(None, [node, os.environ.get("NODE_OPTIONS")])),
+        "PBAR_SHIM": "1",
+        "PBAR_BIN": str(Path(__file__).resolve()),
+        "PBAR_TTY": core.own_tty() or "",
+    }
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    cmd, args = argv[0], argv[1:]
+    last = core.load()
+    if cmd == "set":
+        if len(args) != 1:
+            print("usage: pbar set <0..1 | NN% | N/M>", file=sys.stderr)
+            return 2
+        core.push(core.parse_value(args[0]), "run")
+    elif cmd == "busy":
+        core.push(0.0, "busy")
+    elif cmd == "done":
+        core.push(1.0, "done")
+    elif cmd == "fail":
+        core.push(float(last.get("value", 0.0)), "fail")
+    elif cmd == "end":
+        rc = int(args[0]) if args else 0
+        if rc == 0:
+            core.push(1.0, "done")
+        else:
+            core.push(float(last.get("value", 0.0)), "fail")
+        return rc
+    elif cmd == "clear":
+        core.push(0.0, "clear")
+    elif cmd == "refresh":
+        core.push(float(last.get("value", 0.0)), last.get("state", "clear"))
+    elif cmd == "bar":
+        print(core.bar_string())
+    elif cmd == "status":
+        print(f"{last.get('state')} {round(100 * float(last.get('value', 0)))}% ({core.detect_backend()})")
+    elif cmd == "pipe":
+        opts = parse_opts(args)
+        if opts is None:
+            return 2
+        core.track(fd_reader(sys.stdin.fileno()), stdout_writer, opts["key"],
+                   step=opts["step"], steps=opts["steps"])
+    elif cmd == "run":
+        opts = parse_opts(args)
+        if opts is None:
+            return 2
+        args = opts["rest"]
+        if not args:
+            print("usage: pbar run [--pty] [--shim] [--step RX [--steps N]] [-k KEY] -- <cmd...>",
+                  file=sys.stderr)
+            return 2
+        env = shim_env() if opts["shim"] else None
+        read, wait = core.spawn(args, use_pty=opts["pty"], env=env)
+        core.track(read, stdout_writer, opts["key"] or core.command_key(" ".join(args)),
+                   clean=opts["pty"], step=opts["step"], steps=opts["steps"])
+        return main(["end", str(wait())])
+    elif cmd == "selftest":
+        import pbar_selftest
+        if "--snippets" in args:
+            print(pbar_selftest.snippets())
+            return 0
+        rest = [a for a in args if not a.startswith("--")]
+        return pbar_selftest.run(rest[0] if rest else None, allow_network="--network" in args,
+                                 capture="--capture" in args)
+    elif cmd == "animate":
+        core.animate()
+    else:
+        print(f"pbar: unknown command {cmd!r}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

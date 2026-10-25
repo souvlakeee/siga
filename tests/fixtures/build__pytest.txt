@@ -1,0 +1,48 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.7.0 -- /home/user/Sources/progress-bar/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/pbar-example
+collecting ... collected 40 items
+
+test_1.py::test_slow[0] PASSED                                           [  2%]
+test_1.py::test_slow[1] PASSED                                           [  5%]
+test_1.py::test_slow[2] PASSED                                           [  7%]
+test_1.py::test_slow[3] PASSED                                           [ 10%]
+test_1.py::test_slow[4] PASSED                                           [ 12%]
+test_1.py::test_slow[5] PASSED                                           [ 15%]
+test_1.py::test_slow[6] PASSED                                           [ 17%]
+test_1.py::test_slow[7] PASSED                                           [ 20%]
+test_1.py::test_slow[8] PASSED                                           [ 22%]
+test_1.py::test_slow[9] PASSED                                           [ 25%]
+test_2.py::test_slow[0] PASSED                                           [ 27%]
+test_2.py::test_slow[1] PASSED                                           [ 30%]
+test_2.py::test_slow[2] PASSED                                           [ 32%]
+test_2.py::test_slow[3] PASSED                                           [ 35%]
+test_2.py::test_slow[4] PASSED                                           [ 37%]
+test_2.py::test_slow[5] PASSED                                           [ 40%]
+test_2.py::test_slow[6] PASSED                                           [ 42%]
+test_2.py::test_slow[7] PASSED                                           [ 45%]
+test_2.py::test_slow[8] PASSED                                           [ 47%]
+test_2.py::test_slow[9] PASSED                                           [ 50%]
+test_3.py::test_slow[0] PASSED                                           [ 52%]
+test_3.py::test_slow[1] PASSED                                           [ 55%]
+test_3.py::test_slow[2] PASSED                                           [ 57%]
+test_3.py::test_slow[3] PASSED                                           [ 60%]
+test_3.py::test_slow[4] PASSED                                           [ 62%]
+test_3.py::test_slow[5] PASSED                                           [ 65%]
+test_3.py::test_slow[6] PASSED                                           [ 67%]
+test_3.py::test_slow[7] PASSED                                           [ 70%]
+test_3.py::test_slow[8] PASSED                                           [ 72%]
+test_3.py::test_slow[9] PASSED                                           [ 75%]
+test_4.py::test_slow[0] PASSED                                           [ 77%]
+test_4.py::test_slow[1] PASSED                                           [ 80%]
+test_4.py::test_slow[2] PASSED                                           [ 82%]
+test_4.py::test_slow[3] PASSED                                           [ 85%]
+test_4.py::test_slow[4] PASSED                                           [ 87%]
+test_4.py::test_slow[5] PASSED                                           [ 90%]
+test_4.py::test_slow[6] PASSED                                           [ 92%]
+test_4.py::test_slow[7] PASSED                                           [ 95%]
+test_4.py::test_slow[8] PASSED                                           [ 97%]
+test_4.py::test_slow[9] PASSED                                           [100%]
+
+============================== 40 passed in 4.21s ==============================

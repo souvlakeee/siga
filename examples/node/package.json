@@ -1,0 +1,2 @@
+{ "name": "pbar-node-examples", "private": true, "type": "commonjs",
+  "dependencies": { "cli-progress": "^3.12.0", "progress": "^2.0.3" } }

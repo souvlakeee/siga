@@ -1,0 +1,21 @@
+[deploy] $ bash scripts/deploy.sh
+[deploy:lock] another job is running (PID 69249) — polling every 250ms…
+[deploy:bump] $ bun run scripts/bump-build.ts
+Build: 20261025.8
+[deploy:sync] $ rsync -a --delete ./ stage:/opt/app/
+ * branch                main       -> FETCH_HEAD
+skipping non-regular file "AGENTS.md"
+$ astro build
+13:28:05 [@astrojs/node] Enabling sessions with filesystem storage
+13:28:05 [vite] Re-optimizing dependencies because vite config has changed
+13:28:05 [types] Generated 441ms
+13:28:05 [build] output: "server"
+13:28:05 [build] directory: /opt/app/dist.new/
+13:28:05 [build] ✓ Completed in 518ms.
+13:28:06 [assets] Copying fonts (18 files)...
+13:28:06 [vite] ✓ built in 213ms
+13:28:11 [WARN] [vite] (!) Some chunks are larger than 1500 kB after minification.
+13:28:13 [build] Server built in 8.31s
+[deploy:verify] $ curl -sf https://example.com/api/health/live
+✓ health: pass
+EXIT 0

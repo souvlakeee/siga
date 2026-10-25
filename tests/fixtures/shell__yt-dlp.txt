@@ -1,0 +1,29 @@
+[generic] Extracting URL: http://127.0.0.1:50482/big.bin
+[generic] big: Downloading webpage
+WARNING: [generic] Falling back on generic information extractor
+WARNING: [generic] URL could be a direct video link, returning it as such.
+[info] big: Downloading 1 format(s): 0
+[download] Destination: video.bin
+[download]   0.0% of   40.00MiB at  Unknown B/s ETA Unknown
+[download]   0.0% of   40.00MiB at  Unknown B/s ETA Unknown
+[download]   0.0% of   40.00MiB at    6.34MiB/s ETA 00:06
+[download]   0.0% of   40.00MiB at    6.87MiB/s ETA 00:05
+[download]   0.1% of   40.00MiB at    6.97MiB/s ETA 00:05
+[download]   0.2% of   40.00MiB at    7.09MiB/s ETA 00:05
+[download]   0.3% of   40.00MiB at    7.63MiB/s ETA 00:05
+[download]   0.6% of   40.00MiB at    7.09MiB/s ETA 00:05
+[download]   1.2% of   40.00MiB at    7.60MiB/s ETA 00:05
+[download]   2.5% of   40.00MiB at    7.68MiB/s ETA 00:05
+[download]   5.0% of   40.00MiB at    7.83MiB/s ETA 00:04
+[download]  10.0% of   40.00MiB at    7.86MiB/s ETA 00:04
+[download]  20.0% of   40.00MiB at    7.97MiB/s ETA 00:04
+[download]  30.0% of   40.00MiB at    7.94MiB/s ETA 00:03
+[download]  40.0% of   40.00MiB at    7.98MiB/s ETA 00:03
+[download]  50.0% of   40.00MiB at    7.96MiB/s ETA 00:02
+[download]  60.0% of   40.00MiB at    7.98MiB/s ETA 00:02
+[download]  70.0% of   40.00MiB at    7.97MiB/s ETA 00:01
+[download]  80.0% of   40.00MiB at    7.99MiB/s ETA 00:01
+[download]  90.0% of   40.00MiB at    7.98MiB/s ETA 00:00
+[download] 100.0% of   40.00MiB at    7.99MiB/s ETA 00:00
+[download] 100.0% of   40.00MiB at    7.99MiB/s ETA 00:00
+[download] 100% of   40.00MiB in 00:00:05 at 7.98MiB/s

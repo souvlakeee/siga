@@ -1,0 +1,50 @@
+ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
+  built with Apple clang version 21.0.0 (clang-2100.3.34.2)
+  configuration: --prefix=/opt/homebrew/Cellar/ffmpeg/9.0.2_1 --enable-shared --enable-pthreads --enable-version3 --cc=clang --host-cflags= --host-ldflags= --enable-ffplay --enable-gpl --enable-libsvtav1 --enable-libopus --enable-libx264 --enable-libmp3lame --enable-libdav1d --enable-libvmaf --enable-libvpx --enable-libx265 --enable-openssl --enable-videotoolbox --enable-audiotoolbox --enable-neon
+  libavutil      61.  1.102 / 61.  1.102
+  libavcodec     63.  1.102 / 63.  1.102
+  libavformat    63.  1.102 / 63.  1.102
+  libavdevice    63.  1.102 / 63.  1.102
+  libavfilter    12.  1.102 / 12.  1.102
+  libswscale     10.  1.102 / 10.  1.102
+  libswresample   7.  1.102 /  7.  1.102
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'in.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf63.1.102
+  Duration: 00:00:06.00, start: 0.000000, bitrate: 53 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(progressive), 640x360 [SAR 1:1 DAR 16:9], 49 kb/s, 30 fps, 30 tbr, 15360 tbn (default)
+    Metadata:
+      handler_name    : VideoHandler
+      encoder         : Lavc63.1.102 libx264
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> h264 (libx264))
+Press [q] to stop, [?] for help
+[libx264 @ 0xbdb048a80] using SAR=1/1
+[libx264 @ 0xbdb048a80] using cpu capabilities: ARMv8 NEON DotProd I8MM
+[libx264 @ 0xbdb048a80] profile Constrained Baseline, level 3.0, 4:2:0, 8-bit
+[libx264 @ 0xbdb048a80] 264 - core 165 r3222 b35605a - H.264/MPEG-4 AVC codec - Copyleft 2003-2025 - http://www.videolan.org/x264.html - options: cabac=0 ref=1 deblock=0:0:0 analyse=0:0 me=dia subme=0 psy=1 psy_rd=1.00:0.00 mixed_ref=0 me_range=16 chroma_me=1 trellis=0 8x8dct=0 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=0 threads=11 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=0 weightp=0 keyint=250 keyint_min=25 scenecut=0 intra_refresh=0 rc=crf mbtree=0 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=0
+Output #0, mp4, to 'out.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf63.1.102
+  Stream #0:0(und): Video: h264 (avc1 / 0x31637661), yuv420p(tv, progressive), 640x360 [SAR 1:1 DAR 16:9], q=2-31, 30 fps, 15360 tbn (default)
+    Metadata:
+      encoder         : Lavc63.1.102 libx264
+      handler_name    : VideoHandler
+    Side data:
+      CPB properties: bitrate max/min/avg: 0/0/0 buffer size: 0 vbv_delay: N/A
+frame=    5 fps=0.0 q=17.0 size=       0KiB time=00:00:00.16 bitrate=   2.3kbits/s speed=0.33x elapsed=0:00:00.50    frame=   20 fps= 20 q=17.0 size=       0KiB time=00:00:00.66 bitrate=   0.6kbits/s speed=0.661x elapsed=0:00:01.00    frame=   35 fps= 23 q=17.0 size=       0KiB time=00:00:01.16 bitrate=   0.3kbits/s speed=0.771x elapsed=0:00:01.51    frame=   50 fps= 25 q=17.0 size=       0KiB time=00:00:01.66 bitrate=   0.2kbits/s speed=0.828x elapsed=0:00:02.01    frame=   65 fps= 26 q=17.0 size=       0KiB time=00:00:02.16 bitrate=   0.2kbits/s speed=0.861x elapsed=0:00:02.51    frame=   80 fps= 26 q=17.0 size=       0KiB time=00:00:02.66 bitrate=   0.1kbits/s speed=0.882x elapsed=0:00:03.02    frame=   95 fps= 27 q=17.0 size=       0KiB time=00:00:03.16 bitrate=   0.1kbits/s speed=0.898x elapsed=0:00:03.52    frame=  110 fps= 27 q=17.0 size=       0KiB time=00:00:03.66 bitrate=   0.1kbits/s speed=0.91x elapsed=0:00:04.02    frame=  125 fps= 28 q=17.0 size=       0KiB time=00:00:04.16 bitrate=   0.1kbits/s speed=0.919x elapsed=0:00:04.53    frame=  141 fps= 28 q=18.0 size=       0KiB time=00:00:04.70 bitrate=   0.1kbits/s speed=0.933x elapsed=0:00:05.03    [out#0/mp4 @ 0xbdac0c6c0] video:174KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.882256%
+frame=  180 fps= 33 q=-1.0 Lsize=     176KiB time=00:00:06.00 bitrate= 239.8kbits/s speed=1.11x elapsed=0:00:05.41    
+[libx264 @ 0xbdb048a80] frame I:1     Avg QP:20.00  size:  8217
+[libx264 @ 0xbdb048a80] frame P:179   Avg QP:17.09  size:   947
+[libx264 @ 0xbdb048a80] mb I  I16..4: 100.0%  0.0%  0.0%
+[libx264 @ 0xbdb048a80] mb P  I16..4:  2.2%  0.0%  0.0%  P16..4: 14.8%  0.0%  0.0%  0.0%  0.0%    skip:83.0%
+[libx264 @ 0xbdb048a80] coded y,uvDC,uvAC intra: 14.1% 75.8% 30.6% inter: 2.9% 12.6% 3.2%
+[libx264 @ 0xbdb048a80] i16 v,h,dc,p: 57% 10%  1% 31%
+[libx264 @ 0xbdb048a80] i8c dc,h,v,p: 13% 12% 32% 43%
+[libx264 @ 0xbdb048a80] kb/s:236.92
