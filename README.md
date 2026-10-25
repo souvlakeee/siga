@@ -8,8 +8,10 @@
 rushes the coffee, the afternoon or the man in the shade. Things get done in their own
 time, and that's fine, as long as you can see them getting done.
 
-siga brings that to your terminal. Claude starts the build and writes one bar. No logs to
-watch, no "is it done yet?". You glance over, see how far it is, and finish your coffee.
+siga brings that to your terminal. No message after message of
+"still building… 40%… 70%…". Claude writes one bar, once, and it
+fills in place while the work runs. You glance over, see how far
+along it is, and finish your coffee.
 
 <br clear="left">
 
