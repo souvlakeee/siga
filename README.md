@@ -5,14 +5,16 @@
 <p align="center"><b>Progress bars that keep filling after they are printed.</b><br>
 <i>Siga-siga</i> means "slowly-slowly" in Cyprus. Your build can take its time; the bar keeps up.</p>
 
-| Claude Code today | With siga |
-|---|---|
-| <a href="docs/media/before.mp4"><img src="docs/media/before.gif" alt="Without siga: every wait prints another progress line"></a> | <a href="docs/media/after.mp4"><img src="docs/media/after.gif" alt="With siga: one bar fills in place"></a> |
-| Every wait prints another progress line. | One bar, written once, fills in place. |
+**Without siga.** Asked to build [bat](https://github.com/sharkdp/bat), Claude starts `cargo build`
+in the background and polls a file. You see nothing until it ends.
 
-Claude writes `⟦bar⟧` once, in the message that starts a long job. siga turns it into a
-live bar and keeps it moving while the job runs, inside text that was already printed.
-Ghostty draws it with a shader, Kitty with an image placeholder.
+<a href="docs/media/before.mp4"><img src="docs/media/before.gif" width="900" alt="Without siga: Claude backgrounds cargo build and polls a file; no progress is visible"></a>
+
+**With siga.** Same prompt, same 223 crates. One bar, written once, fills in place.
+
+<a href="docs/media/after.mp4"><img src="docs/media/after.gif" width="900" alt="With siga: a bar under Claude's message fills while cargo compiles, then turns green"></a>
+
+<p align="center"><img src="docs/media/how-it-works.svg" width="880" alt="Claude writes ⟦bar⟧ once; a MessageDisplay hook swaps it for 20 cells on screen. A PreToolUse hook wraps the job; siga reads its progress (12/40, 45%, ETA) and repaints those same cells in place: OSC 4 and a GPU shader in Ghostty, a PNG placeholder in Kitty, relayed by herdr."></p>
 
 ## Install
 

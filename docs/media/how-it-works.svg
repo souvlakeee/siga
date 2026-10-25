@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 440" width="880" height="440" role="img" aria-labelledby="t d">
+  <title id="t">How siga works</title>
+  <desc id="d">Claude writes the token ⟦bar⟧ once. A hook swaps it for 20 cells on screen. Another hook wraps the job; siga reads its progress and repaints those same cells in place: through a GPU shader in Ghostty, an image placeholder in Kitty.</desc>
+  <defs>
+    <style>
+      text { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; fill: #e6edf3; }
+      .dim { fill: #8b949e; }
+      .tag { font-size: 11px; letter-spacing: .12em; fill: #8b949e; }
+      .tok { fill: #f0b72f; }
+      .key { fill: #79c0ff; }
+      .lbl { font-size: 12px; fill: #8b949e; }
+      .lblb { font-size: 12px; fill: #e6edf3; }
+      .hook { font-size: 11px; fill: #d2a8ff; }
+      .panel { fill: #161b22; stroke: #30363d; stroke-width: 1; }
+      .wire { stroke: #484f58; stroke-width: 1.5; fill: none; }
+      .cell { fill: #21262d; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#484f58"/>
+    </marker>
+    <linearGradient id="fill" x1="0" x2="1">
+      <stop offset="0" stop-color="#1f6feb"/>
+      <stop offset="1" stop-color="#39c5cf"/>
+    </linearGradient>
+    <clipPath id="progress">
+      <rect x="0" y="0" height="40" width="0">
+        <animate attributeName="width" values="0;0;240;240" keyTimes="0;.08;.8;1" dur="5s" repeatCount="indefinite"/>
+      </rect>
+    </clipPath>
+  <mask id="cellmask" maskUnits="userSpaceOnUse">
+      <g fill="#fff">
+        <rect x="0" y="0" width="10" height="18" rx="2"/><rect x="12" y="0" width="10" height="18" rx="2"/>
+        <rect x="24" y="0" width="10" height="18" rx="2"/><rect x="36" y="0" width="10" height="18" rx="2"/>
+        <rect x="48" y="0" width="10" height="18" rx="2"/><rect x="60" y="0" width="10" height="18" rx="2"/>
+        <rect x="72" y="0" width="10" height="18" rx="2"/><rect x="84" y="0" width="10" height="18" rx="2"/>
+        <rect x="96" y="0" width="10" height="18" rx="2"/><rect x="108" y="0" width="10" height="18" rx="2"/>
+        <rect x="120" y="0" width="10" height="18" rx="2"/><rect x="132" y="0" width="10" height="18" rx="2"/>
+        <rect x="144" y="0" width="10" height="18" rx="2"/><rect x="156" y="0" width="10" height="18" rx="2"/>
+        <rect x="168" y="0" width="10" height="18" rx="2"/><rect x="180" y="0" width="10" height="18" rx="2"/>
+        <rect x="192" y="0" width="10" height="18" rx="2"/><rect x="204" y="0" width="10" height="18" rx="2"/>
+        <rect x="216" y="0" width="10" height="18" rx="2"/><rect x="228" y="0" width="10" height="18" rx="2"/>
+      </g>
+    </mask>
+  </defs>
+
+  <rect width="880" height="440" rx="14" fill="#0d1117"/>
+
+  <!-- top left: what Claude writes -->
+  <text x="40" y="44" class="tag">CLAUDE WRITES</text>
+  <rect x="28" y="56" width="350" height="118" rx="8" class="panel"/>
+  <text x="48" y="96">Building the app.</text>
+  <text x="68" y="140" class="dim">build</text><text x="120" y="140" class="tok">⟦bar⟧</text>
+
+  <!-- top right: what the terminal shows -->
+  <text x="512" y="44" class="tag">YOUR TERMINAL SHOWS</text>
+  <rect x="500" y="56" width="352" height="118" rx="8" class="panel"/>
+  <text x="520" y="96">Building the app.</text>
+  <text x="540" y="140" class="dim">build</text>
+  <g transform="translate(596,126)">
+    <g>
+      <rect class="cell" x="0" y="0" width="10" height="18" rx="2"/><rect class="cell" x="12" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="24" y="0" width="10" height="18" rx="2"/><rect class="cell" x="36" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="48" y="0" width="10" height="18" rx="2"/><rect class="cell" x="60" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="72" y="0" width="10" height="18" rx="2"/><rect class="cell" x="84" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="96" y="0" width="10" height="18" rx="2"/><rect class="cell" x="108" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="120" y="0" width="10" height="18" rx="2"/><rect class="cell" x="132" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="144" y="0" width="10" height="18" rx="2"/><rect class="cell" x="156" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="168" y="0" width="10" height="18" rx="2"/><rect class="cell" x="180" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="192" y="0" width="10" height="18" rx="2"/><rect class="cell" x="204" y="0" width="10" height="18" rx="2"/>
+      <rect class="cell" x="216" y="0" width="10" height="18" rx="2"/><rect class="cell" x="228" y="0" width="10" height="18" rx="2"/>
+    </g>
+    <rect clip-path="url(#progress)" mask="url(#cellmask)" x="0" y="0" width="238" height="18" fill="url(#fill)"/>
+  </g>
+
+  <!-- top wire: MessageDisplay hook -->
+  <path d="M384,115 H494" class="wire" marker-end="url(#arrow)"/>
+  <text x="439" y="104" text-anchor="middle" class="hook">MessageDisplay</text>
+  <text x="439" y="134" text-anchor="middle" class="lbl">token →</text>
+  <text x="439" y="149" text-anchor="middle" class="lbl">20 cells</text>
+
+  <!-- bottom left: the job -->
+  <text x="40" y="262" class="tag">THE JOB</text>
+  <rect x="28" y="274" width="350" height="136" rx="8" class="panel"/>
+  <text x="48" y="312">$ cargo build</text>
+  <text x="68" y="342" class="dim">Compiling serde</text><text x="230" y="342" class="dim">[12/40]</text>
+  <text x="68" y="366" class="dim">Compiling tokio</text><text x="230" y="366" class="dim">[13/40]</text>
+  <text x="68" y="390" class="dim">…</text>
+
+  <!-- bottom right: siga -->
+  <text x="512" y="262" class="tag">SIGA</text>
+  <rect x="500" y="274" width="352" height="136" rx="8" class="panel"/>
+  <text x="520" y="312" class="key">reads</text><text x="600" y="312">12/40 · 45% · ETA</text>
+  <text x="520" y="346" class="key">Ghostty</text><text x="600" y="346">OSC 4 → GPU shader</text>
+  <text x="520" y="370" class="key">Kitty</text><text x="600" y="370">PNG → placeholder</text>
+  <text x="520" y="394" class="key">herdr</text><text x="600" y="394" class="dim">relays both</text>
+
+  <!-- bottom wire: PreToolUse hook -->
+  <path d="M384,342 H494" class="wire" marker-end="url(#arrow)"/>
+  <text x="439" y="331" text-anchor="middle" class="hook">PreToolUse</text>
+  <text x="439" y="361" text-anchor="middle" class="lbl">wraps the</text>
+  <text x="439" y="376" text-anchor="middle" class="lbl">command</text>
+
+  <!-- vertical wire: siga repaints the cells -->
+  <path d="M708,268 V182" class="wire" marker-end="url(#arrow)"/>
+  <text x="720" y="214" class="lblb">repaints the same</text>
+  <text x="720" y="230" class="lbl">cells, in place</text>
+</svg>
