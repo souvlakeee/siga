@@ -16,7 +16,7 @@
   siga pipe [-k KEY]            copy stdin to stdout, tracking progress
   --step RX [--steps N]         (run, pipe) for custom scripts: a line matching RX starts
                                 the next step; N is learned from the last run if omitted
-  siga selftest [name] [--network] [--capture]
+  siga selftest [name] [--network] [--capture] | --snippets | --readme
                                 run examples/ under a recorder and check every bar
   siga setup [--plan|--apply|--remove]
                                 install the font and the Ghostty/Kitty config (shows the diff first)
@@ -154,6 +154,8 @@ def main(argv):
         if "--snippets" in args:
             print(selftest.snippets())
             return 0
+        if "--readme" in args:
+            return 0 if selftest.readme_ok() else 1
         rest = [a for a in args if not a.startswith("--")]
         return selftest.run(rest[0] if rest else None, allow_network="--network" in args,
                                  capture="--capture" in args)
