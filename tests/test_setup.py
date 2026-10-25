@@ -34,5 +34,14 @@ class Plan(unittest.TestCase):
             self.assertIn(word, descs)
 
 
+class Welcome(unittest.TestCase):
+    def test_line_per_terminal(self):
+        cases = [("kitty", False, "Try it"), ("ghostty", False, "Try it"),
+                 ("ghostty", True, "new Ghostty window"), ("text", False, "in Ghostty or Kitty")]
+        for backend, font_new, expect in cases:
+            with mock.patch.object(setup.core, "detect_backend", return_value=backend):
+                self.assertIn(expect, setup.welcome(font_new), backend)
+
+
 if __name__ == "__main__":
     unittest.main()

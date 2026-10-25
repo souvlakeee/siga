@@ -201,6 +201,16 @@ def where():
     return "This terminal shows a static bar; live bars need Ghostty 1.3+ or Kitty 0.49+."
 
 
+def welcome(font_new=False):
+    """The last line of setup: how to see a bar fill right now."""
+    backend = core.detect_backend()
+    if backend == "ghostty" and font_new:
+        return "Open a new Ghostty window (it loads the new font), then run `siga demo` there."
+    if backend in ("ghostty", "kitty"):
+        return "Try it: `siga demo` fills a bar for 4 seconds."
+    return "Run `siga demo` in Ghostty or Kitty to see a live bar."
+
+
 def main(args):
     if "--remove" in args:
         changed = [str(p) for p in (font_dest(), SHADER) if p.exists()]
@@ -218,6 +228,7 @@ def main(args):
     if not steps:
         print("Nothing to set up." if not ghostty_present()
               else "siga is set up: the font, shader and Ghostty config are in place.")
+        print(welcome())
         return 0
     if "--apply" not in args:
         lead = "siga setup would:" if core.detect_backend() == "ghostty" \
@@ -225,9 +236,11 @@ def main(args):
         print(lead + "\n" + "\n".join(f"  {i + 1}. {d}" for i, (d, _) in enumerate(steps)))
         print("\nRun `siga setup --apply` to make these changes.")
         return 0
+    font_new = any(d.startswith("copy font") for d, _ in steps)
     for desc, fn in steps:
         fn()
-        print("done: " + desc.splitlines()[0])
+        print("done: " + desc.splitlines()[0].rstrip(":"))
     if reload_terminals():
         print("Ghostty reloaded. A newly installed font is picked up by new Ghostty windows.")
+    print(welcome(font_new))
     return 0

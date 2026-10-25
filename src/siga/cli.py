@@ -8,6 +8,7 @@
   siga bar                      print the bar string for this terminal
   siga refresh                  re-push the last state (new windows, restarts)
   siga status                   print the last state
+  siga demo [seconds]           fill a bar from 0 to 100% (default 4 s), to check it draws
   siga run [--pty] [--shim] -- <cmd...>
                                 run cmd, track its output, end with its exit code;
                                 --pty for tools that only draw progress on a terminal
@@ -33,6 +34,7 @@ import os
 import select
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from siga import core
@@ -127,6 +129,15 @@ def main(argv):
         core.push(float(last.get("value", 0.0)), last.get("state", "clear"))
     elif cmd == "bar":
         print(core.bar_string())
+    elif cmd == "demo":
+        seconds = float(args[0]) if args else 4.0
+        if sys.stdout.isatty():
+            print("  siga " + core.bar_string(), flush=True)
+        for i in range(21):
+            core.push(i / 20, "run")
+            time.sleep(seconds / 20)
+        core.push(1.0, "done")
+        print(f"siga demo: filled a bar in {seconds:g} s ({core.detect_backend()})")
     elif cmd == "status":
         print(f"{last.get('state')} {round(100 * float(last.get('value', 0)))}% ({core.detect_backend()})")
     elif cmd == "pipe":

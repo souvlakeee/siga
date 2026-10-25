@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 (2026-10-25)
+
+- `siga demo [seconds]` fills a bar from 0 to 100% (default 4 s).
+- `/siga:setup` ends with a welcome run: Claude writes `⟦bar⟧` and runs `siga demo`, so
+  the bar fills on screen right after setup. After a fresh Ghostty font install it asks
+  for a new window first.
+- The `done: append to …` line no longer ends in a colon.
+
 ## 0.1.3 (2026-10-25)
 
 - `siga setup` names the terminal you're in. Kitty is told it needs nothing; the Ghostty
