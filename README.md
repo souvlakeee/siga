@@ -19,7 +19,8 @@ Ghostty draws it with a shader, Kitty with an image placeholder.
 In Claude Code 2.1.275+:
 
 ```
-/plugin install siga --marketplace souvlakeee/siga
+/plugin marketplace add souvlakeee/siga
+/plugin install siga@siga
 /siga:setup
 ```
 

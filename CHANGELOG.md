@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 (2026-10-25)
+
+- `siga setup` names the terminal you're in. Kitty is told it needs nothing; the Ghostty
+  steps appear only when Ghostty is installed. "Ghostty reloaded" prints only when a
+  Ghostty process was signalled.
+- `/siga:setup` relays siga's own words instead of always talking about Ghostty.
+- README: the install takes `/plugin marketplace add` and then `/plugin install`.
+
 ## 0.1.2 (2026-10-25)
 
 - The SessionStart rule now tells Claude to use `siga run` for commands the hook doesn't

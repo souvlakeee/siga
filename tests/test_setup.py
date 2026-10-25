@@ -18,5 +18,21 @@ class Reload(unittest.TestCase):
         kill.assert_called_once_with(101, signal.SIGUSR2)
 
 
+class Plan(unittest.TestCase):
+    def test_kitty_without_ghostty_needs_nothing(self):
+        with mock.patch.object(setup, "ghostty_present", return_value=False), \
+             mock.patch.object(setup.core, "detect_backend", return_value="kitty"):
+            self.assertFalse([d for d, _ in setup.plan() if "font" in d or "shader" in d or "append" in d])
+            self.assertIn("Kitty", setup.where())
+
+    def test_ghostty_gets_font_shader_and_block(self):
+        with mock.patch.object(setup, "ghostty_present", return_value=True), \
+             mock.patch.object(setup, "_same", return_value=False), \
+             mock.patch.object(setup, "ghostty_config", return_value=Path("/nonexistent/ghostty/config")):
+            descs = " ".join(d for d, _ in setup.plan())
+        for word in ("font", "shader", "append"):
+            self.assertIn(word, descs)
+
+
 if __name__ == "__main__":
     unittest.main()

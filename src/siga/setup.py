@@ -6,7 +6,7 @@
   siga setup --remove   undo them
   siga setup --check    exit 1 if anything is missing (used by the SessionStart hook)
 
-Ghostty needs the Siga font and the shader. The shader is copied to a stable path,
+Only what this machine needs is installed: Ghostty needs the Siga font and the shader. The shader is copied to a stable path,
 because Ghostty's config takes an absolute path and a Claude Code plugin's own
 directory changes on every update. Kitty needs nothing: its bars are images.
 Older pbar installs (the project's former name) are cleaned up on --apply.
@@ -45,6 +45,13 @@ def ghostty_config():
     return candidates[0]
 
 
+def ghostty_present():
+    """Ghostty is on this machine: the app, the binary, its config, or we run inside it."""
+    apps = [Path("/Applications/Ghostty.app"), HOME / "Applications" / "Ghostty.app"]
+    return (core.detect_backend() == "ghostty" or any(a.exists() for a in apps)
+            or shutil.which("ghostty") is not None or ghostty_config().exists())
+
+
 def ghostty_block():
     return [
         BEGIN,
@@ -81,16 +88,16 @@ def plan():
     """[(description, apply_fn)] for everything not yet in place."""
     steps = []
     font = font_dest()
-    if not _same(core.DATA / "Siga.ttf", font):
-        steps.append((f"copy font  {font}", lambda: _copy(core.DATA / "Siga.ttf", font)))
-    if not _same(core.DATA / "siga.glsl", SHADER):
-        steps.append((f"copy shader  {SHADER}", lambda: _copy(core.DATA / "siga.glsl", SHADER)))
-
-    cfg = ghostty_config()
-    text = cfg.read_text() if cfg.exists() else ""
-    if BEGIN not in text:
-        block = "\n".join("    + " + l for l in ghostty_block())
-        steps.append((f"append to {cfg} (backup kept):\n{block}", lambda: _append(cfg, ghostty_block())))
+    if ghostty_present():
+        if not _same(core.DATA / "Siga.ttf", font):
+            steps.append((f"copy font  {font}", lambda: _copy(core.DATA / "Siga.ttf", font)))
+        if not _same(core.DATA / "siga.glsl", SHADER):
+            steps.append((f"copy shader  {SHADER}", lambda: _copy(core.DATA / "siga.glsl", SHADER)))
+        cfg = ghostty_config()
+        text = cfg.read_text() if cfg.exists() else ""
+        if BEGIN not in text:
+            block = "\n".join("    + " + l for l in ghostty_block())
+            steps.append((f"append to {cfg} (backup kept):\n{block}", lambda: _append(cfg, ghostty_block())))
 
     for path in [p for p in (ghostty_config(), HOME / ".config" / "kitty" / "kitty.conf") if p.exists()]:
         drop, lines = _legacy_lines(path.read_text())
@@ -172,13 +179,26 @@ def _remove_block(path):
 def reload_terminals():
     """Ask running Ghostty instances to reload their config (pkill -f can't see app processes)."""
     out = subprocess.run(["ps", "-axo", "pid=,comm="], capture_output=True, text=True).stdout
+    reloaded = 0
     for line in out.splitlines():
         pid, _, comm = line.strip().partition(" ")
         if comm.endswith("Ghostty.app/Contents/MacOS/ghostty") or comm.endswith("/ghostty"):
             try:
                 os.kill(int(pid), signal.SIGUSR2)  # reload config; 12 is SIGSYS on macOS and kills Ghostty
+                reloaded += 1
             except (OSError, ValueError):
                 pass
+    return reloaded
+
+
+def where():
+    """One line naming the terminal we run in, and what it needs."""
+    backend = core.detect_backend()
+    if backend == "kitty":
+        return "You're in Kitty: it draws siga's bars as images and needs nothing."
+    if backend == "ghostty":
+        return "You're in Ghostty: it needs the Siga font, the shader and a config block."
+    return "This terminal shows a static bar; live bars need Ghostty 1.3+ or Kitty 0.49+."
 
 
 def main(args):
@@ -194,16 +214,20 @@ def main(args):
     steps = plan()
     if "--check" in args:
         return 1 if steps else 0
+    print(where())
     if not steps:
-        print("siga is set up: font, shader and Ghostty config are in place (Kitty needs nothing).")
+        print("Nothing to set up." if not ghostty_present()
+              else "siga is set up: the font, shader and Ghostty config are in place.")
         return 0
     if "--apply" not in args:
-        print("siga setup would:\n" + "\n".join(f"  {i + 1}. {d}" for i, (d, _) in enumerate(steps)))
+        lead = "siga setup would:" if core.detect_backend() == "ghostty" \
+            else "Ghostty is also installed. For live bars there, siga setup would:"
+        print(lead + "\n" + "\n".join(f"  {i + 1}. {d}" for i, (d, _) in enumerate(steps)))
         print("\nRun `siga setup --apply` to make these changes.")
         return 0
     for desc, fn in steps:
         fn()
         print("done: " + desc.splitlines()[0])
-    reload_terminals()
-    print("Ghostty reloaded. A newly installed font is picked up by new Ghostty windows.")
+    if reload_terminals():
+        print("Ghostty reloaded. A newly installed font is picked up by new Ghostty windows.")
     return 0
