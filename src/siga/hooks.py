@@ -224,7 +224,10 @@ def _display(text):
 
 def sessionstart(event):
     from siga import setup
-    out = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": RULE}}
+    where = {"kitty": "Kitty", "ghostty": "Ghostty"}.get(core.detect_backend())
+    context = RULE + (f" This window is {where}." if where else
+                      " This terminal shows only a static bar; live bars need Ghostty or Kitty.")
+    out = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": context}}
     try:
         setup.refresh_installed()
         missing = setup.missing()

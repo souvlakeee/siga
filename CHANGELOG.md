@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 (2026-10-25)
+
+- The SessionStart context names the terminal ("This window is Kitty."), so Claude stops
+  guessing.
+- README: `/reload-plugins` after install; no restart needed.
+
 ## 0.1.5 (2026-10-25)
 
 - The welcome bar no longer depends on Claude: `siga setup` arms it, and the MessageDisplay

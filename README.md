@@ -21,8 +21,11 @@ In Claude Code 2.1.275+:
 ```
 /plugin marketplace add souvlakeee/siga
 /plugin install siga@siga
+/reload-plugins
 /siga:setup
 ```
+
+No restart needed: `/reload-plugins` loads siga's hooks into the running session.
 
 `/siga:setup` lists its changes (a font, a shader, a marked Ghostty config block, all
 backed up) and asks first. Kitty needs nothing. Python 3.9+, standard library only.
