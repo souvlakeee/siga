@@ -10,8 +10,7 @@ time, and that's fine, as long as you can see them getting done.
 
 siga brings that to your terminal. No message after message of
 "still building… 40%… 70%…". Claude writes one bar, once, and it
-fills in place while the work runs. You glance over, see how far
-along it is, and finish your coffee.
+fills in place. Glance over, see how far along it is, finish your coffee.
 
 <br clear="left">
 
