@@ -14,7 +14,9 @@ fills in place. Glance over, see how far along it is, finish your coffee.
 
 <br clear="left">
 
-Claude builds [bat](https://github.com/sharkdp/bat) (223 crates). One bar, written once, fills in place. (1.5× speed)
+Claude builds [bat](https://github.com/sharkdp/bat) (223 crates). The bar sits in the line where Claude
+started the job, not in a panel or the status line, and keeps filling even after that line
+scrolls up. (1.5× speed)
 
 <a href="docs/media/after.mp4"><img src="docs/media/after.gif" width="900" alt="With siga: a bar under Claude's message fills while cargo compiles, then turns green"></a>
 
