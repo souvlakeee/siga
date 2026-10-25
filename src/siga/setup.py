@@ -13,6 +13,7 @@ Older pbar installs (the project's former name) are cleaned up on --apply.
 """
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -175,7 +176,7 @@ def reload_terminals():
         pid, _, comm = line.strip().partition(" ")
         if comm.endswith("Ghostty.app/Contents/MacOS/ghostty") or comm.endswith("/ghostty"):
             try:
-                os.kill(int(pid), 12)  # SIGUSR2: reload config
+                os.kill(int(pid), signal.SIGUSR2)  # reload config; 12 is SIGSYS on macOS and kills Ghostty
             except (OSError, ValueError):
                 pass
 

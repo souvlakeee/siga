@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (2026-10-25)
+
+- `/siga:setup` no longer crashes Ghostty on macOS. The config reload sent signal 12,
+  which is SIGUSR2 on Linux but SIGSYS on macOS; it now sends `signal.SIGUSR2`.
+
 ## 0.1.0 (2026-10-25)
 
 First release.
