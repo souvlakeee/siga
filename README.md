@@ -44,11 +44,11 @@ backed up) and asks first. Kitty needs nothing. Python 3.9+, standard library on
 | Ghostty 1.3+ | ✅ | TBD | TBD |
 | Kitty 0.49+ | ✅ | TBD | TBD |
 | [herdr](https://herdr.dev) 0.9.5+ in Kitty | ✅ | TBD | TBD |
-| herdr 0.9.5+ in Ghostty | 🧪 | TBD | TBD |
+| herdr 0.9.5+ in Ghostty | ✅ | TBD | TBD |
 | tmux, zellij | TBD | TBD | TBD |
 | WezTerm, iTerm2 | TBD | TBD | TBD |
 
-✅ works · 🧪 built, not yet seen live · TBD not built yet.
+✅ works · TBD not built yet.
 Tested on macOS. Linux should work but is untested; Windows is TBD. Want your setup in
 the table? [Open an issue](https://github.com/souvlakeee/siga/issues).
 
