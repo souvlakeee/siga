@@ -13,7 +13,8 @@ sessionstart     tell Claude how to use the bar, keep the installed shader curre
                  point at /siga:setup when the font or terminal config is missing
 
 Every hook prints nothing when it has nothing to do, and never raises: a broken hook
-must not change what Claude Code does. SIGA_DISABLE=1 turns them all off.
+must not change what Claude Code does. SIGA_DISABLE=1, or `siga off` (a file in
+~/.config/siga), turns them all off.
 """
 import json
 import os
@@ -220,8 +221,11 @@ HOOKS = {"pretooluse": pretooluse, "posttoolfailure": posttoolfailure,
          "messagedisplay": messagedisplay, "sessionstart": sessionstart}
 
 
+OFF_FILE = Path.home() / ".config" / "siga" / "disabled"
+
+
 def run(name):
-    if os.environ.get("SIGA_DISABLE") == "1" or name not in HOOKS:
+    if os.environ.get("SIGA_DISABLE") == "1" or OFF_FILE.exists() or name not in HOOKS:
         return 0
     try:
         out = HOOKS[name](json.load(sys.stdin))

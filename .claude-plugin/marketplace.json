@@ -1,6 +1,10 @@
 {
   "name": "siga",
-  "owner": { "name": "Maksim Muravev", "url": "https://github.com/souvlakeee" },
+  "description": "siga: live progress bars inside Claude Code replies, drawn by Ghostty and Kitty.",
+  "owner": {
+    "name": "Maksim Muravev",
+    "url": "https://github.com/souvlakeee"
+  },
   "plugins": [
     {
       "name": "siga",

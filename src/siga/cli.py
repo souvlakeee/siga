@@ -20,6 +20,7 @@
                                 run examples/ under a recorder and check every bar
   siga setup [--plan|--apply|--remove]
                                 install the font and the Ghostty/Kitty config (shows the diff first)
+  siga off | on                 pause / resume the Claude Code hooks (no wrapping, no bar swap)
   siga hook <event>             (internal) Claude Code hooks: pretooluse, posttoolfailure,
                                 messagedisplay, sessionstart
   siga animate                  (internal) kitty frame loop
@@ -156,6 +157,14 @@ def main(argv):
         rest = [a for a in args if not a.startswith("--")]
         return selftest.run(rest[0] if rest else None, allow_network="--network" in args,
                                  capture="--capture" in args)
+    elif cmd in ("off", "on"):
+        from siga import hooks
+        if cmd == "off":
+            hooks.OFF_FILE.parent.mkdir(parents=True, exist_ok=True)
+            hooks.OFF_FILE.touch()
+        else:
+            hooks.OFF_FILE.unlink(missing_ok=True)
+        print(f"siga hooks {cmd}")
     elif cmd == "hook":
         from siga import hooks
         return hooks.run(args[0] if args else "")

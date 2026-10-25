@@ -6,5 +6,6 @@
   "homepage": "https://github.com/souvlakeee/siga",
   "repository": "https://github.com/souvlakeee/siga",
   "license": "MIT",
+  "icon": ".claude-plugin/icon.png",
   "keywords": ["progress", "terminal", "ghostty", "kitty", "hooks"]
 }
