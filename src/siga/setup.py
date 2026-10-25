@@ -46,17 +46,6 @@ def ghostty_config():
     return candidates[0]
 
 
-def _read(path):
-    return path.read_text() if path.exists() else ""
-
-
-def ghostty_present():
-    """Ghostty is on this machine: the app, the binary, its config, or we run inside it."""
-    apps = [Path("/Applications/Ghostty.app"), HOME / "Applications" / "Ghostty.app"]
-    return (core.detect_backend() == "ghostty" or any(a.exists() for a in apps)
-            or shutil.which("ghostty") is not None or ghostty_config().exists())
-
-
 def ghostty_block():
     return [
         BEGIN,
@@ -203,7 +192,9 @@ def where():
         return "You're in Kitty: it draws siga's bars as images and needs nothing."
     if backend == "ghostty":
         return "You're in Ghostty: it needs the Siga font, the shader and a config block."
-    return "This terminal shows a static bar. Run /siga:setup in Ghostty 1.3+ or Kitty 0.49+."
+    name = os.environ.get("TERM_PROGRAM") or "this terminal"
+    return (f"You're in {name}: siga can't draw live bars here, so bars stay static. "
+            "Run Claude Code directly in Kitty 0.49+ or Ghostty 1.3+ (not inside tmux or herdr).")
 
 
 def welcome(font_new=False):
@@ -214,8 +205,7 @@ def welcome(font_new=False):
     if backend not in ("ghostty", "kitty"):
         return "Run `siga demo` in Ghostty or Kitty to see a live bar."
     if os.environ.get("CLAUDECODE"):
-        core.CACHE.mkdir(parents=True, exist_ok=True)
-        core.WELCOME.write_text(str(time.time()))
+        core.arm_welcome()
         return "A welcome bar fills under Claude's next message."
     return "Try it: `siga demo` fills a bar for 4 seconds."
 
@@ -237,9 +227,8 @@ def main(args):
     if not steps:
         if core.detect_backend() == "ghostty":
             print("siga is set up: the font, shader and Ghostty config are in place.")
-        elif ghostty_present() and BEGIN not in _read(ghostty_config()):
-            print("Ghostty is installed too: run /siga:setup in a Ghostty window to set it up there.")
-        print(welcome())
+        if core.detect_backend() in ("ghostty", "kitty"):
+            print(welcome())
         return 0
     if "--apply" not in args:
         print("siga setup would:\n" + "\n".join(f"  {i + 1}. {d}" for i, (d, _) in enumerate(steps)))

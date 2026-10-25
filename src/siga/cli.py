@@ -8,7 +8,8 @@
   siga bar                      print the bar string for this terminal
   siga refresh                  re-push the last state (new windows, restarts)
   siga status                   print the last state
-  siga demo [seconds]           fill a bar from 0 to 100% (default 4 s), to check it draws
+  siga demo [seconds]           fill a bar from 0 to 100% (default 4 s), to check it draws;
+                                in Claude Code it fills under Claude's next message
   siga run [--pty] [--shim] -- <cmd...>
                                 run cmd, track its output, end with its exit code;
                                 --pty for tools that only draw progress on a terminal
@@ -130,7 +131,18 @@ def main(argv):
     elif cmd == "bar":
         print(core.bar_string())
     elif cmd == "demo":
+        now = "--now" in args
+        args = [a for a in args if a != "--now"]
         seconds = float(args[0]) if args else 4.0
+        if core.detect_backend() == "text":
+            name = os.environ.get("TERM_PROGRAM") or "this terminal"
+            print(f"siga demo: {name} can't show a live bar. "
+                  "Run Claude Code directly in Kitty or Ghostty to see one.")
+            return 0
+        if os.environ.get("CLAUDECODE") and not now:
+            core.arm_welcome("demo")
+            print("siga demo: a bar fills for 4 s under Claude's next message.")
+            return 0
         if sys.stdout.isatty():
             print("  siga " + core.bar_string(), flush=True)
         for i in range(21):

@@ -183,10 +183,11 @@ def messagedisplay(event):
     except OSError:
         held = ""
     text = held + event.get("delta", "")
-    if event.get("final") and _take_welcome():
-        # the welcome bar fills from the moment it appears, not before
-        text += "\n\n  welcome " + TOKEN
-        core.spawn_detached(["demo"])
+    label = _take_welcome() if event.get("final") else None
+    if label:
+        # the bar fills from the moment it appears, not before
+        text += f"\n\n  {label} {TOKEN}"
+        core.spawn_detached(["demo", "--now"])
     if TOKEN[0] not in text:
         return _display(text) if held else None
     keep = ""
@@ -209,13 +210,14 @@ def messagedisplay(event):
 
 
 def _take_welcome(max_age=300):
-    """True once after `siga setup` armed a welcome bar (and not if it went stale)."""
+    """The bar's label, once, after `siga setup` or `siga demo` armed it (None if stale)."""
     try:
-        armed = float(core.WELCOME.read_text() or 0)
+        armed, _, label = core.WELCOME.read_text().partition(" ")
         core.WELCOME.unlink()
+        fresh = time.time() - float(armed) < max_age
     except (OSError, ValueError):
-        return False
-    return time.time() - armed < max_age
+        return None
+    return (label or "welcome") if fresh else None
 
 
 def _display(text):
@@ -225,8 +227,9 @@ def _display(text):
 def sessionstart(event):
     from siga import setup
     where = {"kitty": "Kitty", "ghostty": "Ghostty"}.get(core.detect_backend())
+    other = os.environ.get("TERM_PROGRAM") or "a terminal siga can't animate"
     context = RULE + (f" This window is {where}." if where else
-                      " This terminal shows only a static bar; live bars need Ghostty or Kitty.")
+                      f" This window is {other}: bars here stay static.")
     out = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": context}}
     try:
         setup.refresh_installed()

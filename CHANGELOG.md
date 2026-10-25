@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7 (2026-10-25)
+
+- Terminals without live bars (herdr, tmux, Terminal.app) get one line that names them,
+  from both `siga setup` and `siga demo`; no more Ghostty advice from Kitty or herdr.
+- Inside Claude Code, `siga demo` puts its bar under Claude's next message, so it shows
+  even when Claude doesn't write the token.
+
 ## 0.1.6 (2026-10-25)
 
 - The SessionStart context names the terminal ("This window is Kitty."), so Claude stops

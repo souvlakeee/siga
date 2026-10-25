@@ -23,7 +23,12 @@ PKG = Path(__file__).resolve().parent
 DATA = PKG / "data"
 SRC = PKG.parent  # what PYTHONPATH needs for `python -m siga`
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "siga"
-WELCOME = CACHE / "welcome"  # armed by `siga setup`, shown under Claude's next message
+WELCOME = CACHE / "welcome"  # armed by `siga setup` / `siga demo`, shown under Claude's next message
+
+
+def arm_welcome(label="welcome"):
+    CACHE.mkdir(parents=True, exist_ok=True)
+    WELCOME.write_text(f"{time.time()} {label}")
 HISTORY_FILE = CACHE / "history.json"
 
 CELLS = 20

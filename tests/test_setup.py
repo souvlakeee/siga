@@ -1,4 +1,6 @@
 """siga setup must never send Ghostty a signal that kills it."""
+import contextlib
+import io
 import signal
 import sys
 import tempfile
@@ -22,8 +24,7 @@ class Reload(unittest.TestCase):
 
 class Plan(unittest.TestCase):
     def test_kitty_never_gets_ghostty_steps(self):
-        with mock.patch.object(setup, "ghostty_present", return_value=True), \
-             mock.patch.object(setup, "_same", return_value=False), \
+        with mock.patch.object(setup, "_same", return_value=False), \
              mock.patch.object(setup.core, "detect_backend", return_value="kitty"):
             self.assertFalse([d for d, _ in setup.plan() if "font" in d or "shader" in d or "append" in d])
             self.assertIn("Kitty", setup.where())
@@ -71,7 +72,49 @@ class Welcome(unittest.TestCase):
         self.assertIn("welcome", shown)
         self.assertNotIn("⟦bar⟧", shown)
         self.assertIsNone(second)
-        self.assertIn(["demo"], [c.args[0] for c in spawn.call_args_list])
+        self.assertIn(["demo", "--now"], [c.args[0] for c in spawn.call_args_list])
+    def test_demo_in_claude_arms_a_labelled_bar(self):
+        from siga import cli
+        with mock.patch.dict(setup.os.environ, {"CLAUDECODE": "1"}), \
+             mock.patch.object(cli.core, "detect_backend", return_value="kitty"), \
+             mock.patch.object(hook.core, "spawn_detached"):
+            cli.main(["demo"])
+            shown = hook.messagedisplay({"message_id": "m", "delta": "Here.", "final": True})
+        self.assertIn("demo", shown["hookSpecificOutput"]["displayContent"])
+
+    def test_demo_in_static_terminal_names_it(self):
+        from siga import cli
+        out = io.StringIO()
+        with mock.patch.dict(setup.os.environ, {"TERM_PROGRAM": "herdr", "CLAUDECODE": "1"}), \
+             mock.patch.object(cli.core, "detect_backend", return_value="text"), \
+             contextlib.redirect_stdout(out):
+            cli.main(["demo"])
+        self.assertIn("herdr can't show a live bar", out.getvalue())
+        self.assertFalse(setup.core.WELCOME.exists())
+
+
+class Output(unittest.TestCase):
+    def run_plan(self, env):
+        out = io.StringIO()
+        with mock.patch.dict(setup.os.environ, env, clear=False), \
+             mock.patch.object(setup, "plan", return_value=[]), \
+             mock.patch.object(setup, "welcome", return_value="WELCOME"), \
+             contextlib.redirect_stdout(out):
+            setup.main(["--plan"])
+        return out.getvalue().strip().splitlines()
+
+    def test_herdr_gets_one_line_naming_it(self):
+        with mock.patch.object(setup.core, "detect_backend", return_value="text"):
+            lines = self.run_plan({"TERM_PROGRAM": "herdr"})
+        self.assertEqual(len(lines), 1)
+        self.assertIn("herdr", lines[0])
+
+    def test_kitty_never_mentions_ghostty(self):
+        with mock.patch.object(setup.core, "detect_backend", return_value="kitty"):
+            lines = self.run_plan({})
+        self.assertNotIn("Ghostty", " ".join(lines))
+        self.assertEqual(lines[-1], "WELCOME")
+
 
 if __name__ == "__main__":
     unittest.main()
