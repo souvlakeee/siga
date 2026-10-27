@@ -1,25 +1,29 @@
-"""siga core: one progress state per terminal window, pushed to whichever terminal draws the bars.
+"""siga core: a few independent progress slots per terminal window, pushed to whichever
+terminal draws the bars.
 
 Each caller finds the tty of the window it runs in (walking up its parent processes)
 and keeps its own state file, so sessions in different windows don't overwrite each
 other. Without a tty in the ancestry, every window of the terminal app is updated.
 
+A ⟦bar⟧ token is handed one of SLOTS slots (a recycling ring), so a finished bar keeps
+its own value and freezes while the next job's bar moves. On ghostty each slot owns a
+palette entry; the SLOTS+ "scratch" slot is tracked but drawn by nothing.
+
 Backends:
-  ghostty  palette entry 254 (OSC 4) read by data/siga.glsl, bar = Siga font PUA glyphs
-  kitty    a PNG re-uploaded under one image id, bar = kitty Unicode placeholders
+  ghostty  palette entries BASE..BASE+SLOTS-1 (OSC 4) read by data/siga.glsl, bar = Siga
+           font PUA glyphs (one family per slot)
+  kitty    a PNG re-uploaded under one image id, bar = kitty Unicode placeholders (one
+           shared bar per window; slots not yet distinguished)
   text     nothing live; the bar is a static ▰▱ string of the value at that moment
 
 Inside herdr the backend is the terminal the herdr client runs in. herdr turns kitty
 placeholders into its own image placements, so kitty frames go to the pane as usual;
 it swallows OSC 4, so ghostty's palette value goes straight to the client's tty.
 """
-import base64
 import json
 import math
 import os
-import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -36,16 +40,66 @@ def arm_welcome(label="welcome"):
 HISTORY_FILE = CACHE / "history.json"
 
 CELLS = 20
+SLOTS = 4  # independent bar slots per window; a slot index >= SLOTS is scratch (renders nothing)
 STATES = {"clear": 0, "run": 1, "busy": 2, "done": 3, "fail": 4}
 LIVE = ("run", "busy")
 
 
 # ---------------------------------------------------------------- state
 
+def _host_key():
+    """A per-pane id from the inherited env, so the ps-derived window resolution can be
+    shared across this pane's short-lived hook/command processes without another ps."""
+    raw = os.environ.get("HERDR_PANE_ID") or os.environ.get("KITTY_WINDOW_ID")
+    return "".join(c if c.isalnum() else "_" for c in raw) if raw else None
+
+
+def _host_get():
+    """The disk-cached {tty, herdr_backend, herdr_ttys} for this pane, or {} if absent,
+    unkeyed, or stale (a tty it names is gone, or herdr's socket vanished)."""
+    key = _host_key()
+    if not key:
+        return {}
+    try:
+        d = json.loads((CACHE / f"host-{key}.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    ttys = ([d["tty"]] if d.get("tty") else []) + d.get("herdr_ttys", [])
+    sock = os.environ.get("HERDR_SOCKET_PATH")
+    if any(not Path(t).exists() for t in ttys) or (sock and not Path(sock).exists()):
+        return {}
+    return d
+
+
+def _host_set(**fields):
+    key = _host_key()
+    if not key:
+        return
+    f = CACHE / f"host-{key}.json"
+    try:
+        d = json.loads(f.read_text())
+    except (OSError, ValueError):
+        d = {}
+    d.update(fields)
+    try:
+        CACHE.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps(d))
+        tmp.replace(f)
+    except OSError:
+        pass
+
+
 def own_tty():
-    """The tty of the window this process runs in, or None (cached in SIGA_TTY for children)."""
+    """The tty of the window this process runs in, or None. Cached in SIGA_TTY for this
+    process's children, and on disk per pane so sibling processes skip the ps."""
     if "SIGA_TTY" in os.environ:
         return os.environ["SIGA_TTY"] or None
+    cached = _host_get().get("tty")
+    if cached is not None:
+        os.environ["SIGA_TTY"] = cached
+        return cached or None
+    import subprocess
     out = subprocess.run(["ps", "-axo", "pid=,ppid=,tty="],
                          capture_output=True, text=True, check=True).stdout
     procs = {}
@@ -63,6 +117,8 @@ def own_tty():
             break
         pid = ppid
     os.environ["SIGA_TTY"] = tty or ""
+    if tty:  # never persist a miss: "" names no device, so it would never invalidate
+        _host_set(tty=tty)
     return tty
 
 
@@ -78,22 +134,102 @@ def state_file():
     return _scoped("state.json")
 
 
-def save(value, state):
+def _blank():
+    return {"value": 0.0, "state": "clear", "time": 0}
+
+
+def _read():
+    """The whole per-window record: a slot per recent bar, a scratch slot, a recycle
+    cursor, and a queue of slots handed out to ⟦bar⟧ tokens awaiting their command."""
+    try:
+        doc = json.loads(state_file().read_text())
+    except (OSError, ValueError):
+        doc = {}
+    if "slots" not in doc:  # migrate an old flat {value,state,time} record into slot 0
+        doc = {"slots": [dict(doc)] if doc.get("state") else []}
+    while len(doc["slots"]) < SLOTS:
+        doc["slots"].append(_blank())
+    doc.setdefault("scratch", _blank())
+    doc.setdefault("cursor", 0)
+    doc.setdefault("pending", [])
+    doc.setdefault("last", 0)
+    return doc
+
+
+def _write(doc):
     CACHE.mkdir(parents=True, exist_ok=True)
     path = state_file()
     tmp = path.with_suffix(".tmp")
-    rec = {"value": value, "state": state, "time": time.time()}
-    if os.environ.get("SIGA_ORIGIN"):  # "shim": the value came from inside the app
-        rec["src"] = os.environ["SIGA_ORIGIN"]
-    tmp.write_text(json.dumps(rec))
+    tmp.write_text(json.dumps(doc))
     tmp.replace(path)
 
 
-def load():
-    try:
-        return json.loads(state_file().read_text())
-    except (OSError, ValueError):
-        return {"value": 0.0, "state": "clear", "time": 0}
+def save(value, state, slot=None):
+    doc = _read()
+    if slot is None:
+        slot = doc.get("last", 0)
+    rec = {"value": value, "state": state, "time": time.time()}
+    if os.environ.get("SIGA_ORIGIN"):  # "shim": the value came from inside the app
+        rec["src"] = os.environ["SIGA_ORIGIN"]
+    if slot >= SLOTS:
+        doc["scratch"] = rec
+    else:
+        doc["slots"][slot] = rec
+        doc["last"] = slot
+    _write(doc)
+
+
+def load(slot=None):
+    doc = _read()
+    if slot is None:
+        slot = doc.get("last", 0)
+    return doc["scratch"] if slot >= SLOTS else doc["slots"][slot]
+
+
+def allocate():
+    """Hand the next slot to a ⟦bar⟧ token and queue it for the command that follows."""
+    doc = _read()
+    slot = doc.get("cursor", 0) % SLOTS
+    doc["cursor"] = (slot + 1) % SLOTS
+    doc["slots"][slot] = _blank()
+    doc["last"] = slot
+    doc["pending"] = doc.get("pending", []) + [[slot, time.time()]]
+    _write(doc)
+    return slot
+
+
+def resolve_slot(explicit=None, default="last", ttl=300):
+    """The slot a `siga` verb acts on: explicit --slot, else the oldest queued token,
+    else a fallback — the last-touched slot, a scratch slot (nothing renders it), or the
+    one bar still live (for `siga end`, whose token the pipe already consumed)."""
+    if explicit is None and os.environ.get("SIGA_SLOT"):
+        explicit = os.environ["SIGA_SLOT"]  # a shimmed child drives its parent's slot
+    if explicit is not None:
+        return int(explicit)
+    doc = _read()
+    pend = [e for e in doc.get("pending", []) if time.time() - e[1] < ttl]
+    slot = pend.pop(0)[0] if pend else None
+    doc["pending"] = pend
+    _write(doc)
+    if slot is not None:
+        return slot
+    if default == "scratch":
+        return SLOTS
+    if default == "live":
+        for i, rec in enumerate(doc["slots"]):
+            if rec.get("state") in LIVE:
+                return i
+        if doc.get("scratch", {}).get("state") in LIVE:
+            return SLOTS
+    return doc.get("last", 0)
+
+
+def fail_live():
+    """Mark every live bar failed (a wrapped command died before `siga end`)."""
+    doc = _read()
+    for slot, rec in list(enumerate(doc["slots"])) + [(SLOTS, doc.get("scratch", _blank()))]:
+        if rec.get("state") in LIVE:
+            push(float(rec.get("value", 0.0)), "fail", slot=slot)
 
 
 def detect_backend(env=os.environ):
@@ -110,6 +246,7 @@ def detect_backend(env=os.environ):
 
 def child_ttys(app_suffix):
     """ttys of the login shells a terminal app spawned (one per window/tab)."""
+    import subprocess
     out = subprocess.run(["ps", "-axo", "pid=,ppid=,tty=,comm="],
                          capture_output=True, text=True, check=True).stdout
     procs = [line.split(None, 3) for line in out.splitlines()]
@@ -129,6 +266,14 @@ def herdr_host(env=os.environ):
     if "SIGA_HERDR_HOST" in env:
         backend, _, ttys = env["SIGA_HERDR_HOST"].partition(":")
         return backend or None, [t for t in ttys.split(",") if t]
+    if env is os.environ:
+        d = _host_get()
+        if "herdr_backend" in d:
+            backend = d["herdr_backend"] or None
+            ttys = d.get("herdr_ttys", [])
+            os.environ["SIGA_HERDR_HOST"] = f"{backend or ''}:{','.join(ttys)}"
+            return backend, ttys
+    import subprocess
     out = subprocess.run(["ps", "-axo", "pid=,ppid=,tty=,comm="],
                          capture_output=True, text=True).stdout
     procs = {}
@@ -151,6 +296,8 @@ def herdr_host(env=os.environ):
     ttys = sorted(found.get(backend, []))
     if env is os.environ:
         os.environ["SIGA_HERDR_HOST"] = f"{backend or ''}:{','.join(ttys)}"
+        if backend:  # don't persist a miss (see own_tty)
+            _host_set(herdr_backend=backend, herdr_ttys=ttys)
     return backend, ttys
 
 
@@ -178,17 +325,27 @@ def write_tty(tty, data):
 # ---------------------------------------------------------------- ghostty
 
 class Ghostty:
-    """Palette entry 254 carries value + state to the shader (see data/siga.glsl)."""
-    PALETTE_INDEX = 254
+    """Each slot's value + state rides palette entry BASE+slot, read by data/siga.glsl.
+
+    Slot identity is baked into the glyphs: font family j (U+10FB00 + j*CELLS ..) is keyed
+    a distinct green, so the shader tells one bar's cells from another's and reads the
+    matching entry. A finished bar keeps its own entry and freezes while others move.
+    """
+    BASE = 252
 
     @staticmethod
-    def bar(st):
-        return "".join(chr(0x10FB00 + i) for i in range(CELLS))
+    def bar(st, slot=0):
+        if slot is None or slot >= SLOTS:
+            slot = 0
+        first = 0x10FB00 + slot * CELLS
+        return "".join(chr(first + i) for i in range(CELLS))
 
-    def apply(self, value, state):
+    def apply(self, value, state, slot=None):
+        if slot is None or slot >= SLOTS:  # scratch bar: tracked but nothing renders it
+            return
         v = max(0, min(1023, round(value * 1023)))
         seq = "\033]4;%d;#%02x%02x%02x\a" % (
-            self.PALETTE_INDEX, 0xE0 | (v >> 5), 0xE0 | (v & 31), 0xF0 | STATES[state])
+            self.BASE + slot, 0xE0 | (v >> 5), 0xE0 | (v & 31), 0xF0 | STATES[state])
         for tty in target_ttys("/Applications/Ghostty.app/Contents/MacOS/ghostty"):
             write_tty(tty, seq.encode())
 
@@ -237,7 +394,7 @@ class Kitty:
     SEGS = CELLS * 2
 
     @classmethod
-    def bar(cls, st):
+    def bar(cls, st, slot=0):  # kitty keeps one shared bar per window (slot ignored)
         diac = [int(x, 16) for x in (DATA / "kitty_diacritics.txt").read_text().split()]
         head = chr(0x10EEEE) + chr(diac[0]) + chr(diac[0]) + chr(diac[cls.MSB])
         return head + chr(0x10EEEE) * (CELLS - 1)
@@ -276,22 +433,31 @@ class Kitty:
 
     @classmethod
     def frame(cls, value, state, t):
-        """The bar as PNG bytes: rounded segments drawn with the stdlib (zlib) only."""
+        """The bar as PNG bytes: one rounded box per cell, drawn with the stdlib (zlib) only."""
         w, h = CELLS * cls.CELL_W, cls.CELL_H
-        sw = w // cls.SEGS
-        mask = _rounded_mask(sw - 4, int(h * 0.56), 5)
+        bw = cls.CELL_W - 4  # box width; the 4 px gap lands at the cell boundary, ends full
+        mask = _rounded_mask(bw, int(h * 0.56), 5)
         top = int(h * 0.22)
-        rows = []
         cols = cls.colors(value, state, t)
+        # Each cell box holds its two segment colors (left half, right half) for fill detail.
+        boxes = []
+        for cell in range(CELLS):
+            lo, hi = cols[2 * cell], cols[2 * cell + 1]
+            rgb = bytearray(bw * 3)
+            for px in range(bw):
+                rgb[px * 3:px * 3 + 3] = bytes(lo if px * 2 < bw else hi)
+            boxes.append(rgb)
+        rows = []
         for y in range(h):
             row = bytearray(1 + w * 4)  # filter byte 0, then transparent pixels
             my = y - top
             if 0 <= my < len(mask):
                 alphas = mask[my]
-                for i, (r, g, b) in enumerate(cols):
-                    x0 = 1 + (i * sw + 2) * 4
-                    seg = bytearray(len(alphas) * 4)
-                    seg[0::4], seg[1::4], seg[2::4] = bytes([r]) * len(alphas), bytes([g]) * len(alphas), bytes([b]) * len(alphas)
+                for cell in range(CELLS):
+                    x0 = 1 + (cell * cls.CELL_W + 2) * 4
+                    rgb = boxes[cell]
+                    seg = bytearray(bw * 4)
+                    seg[0::4], seg[1::4], seg[2::4] = rgb[0::3], rgb[1::3], rgb[2::3]
                     seg[3::4] = alphas
                     row[x0:x0 + len(seg)] = seg
             rows.append(bytes(row))
@@ -299,6 +465,8 @@ class Kitty:
 
     @classmethod
     def push_frame(cls, value, state, t=0.0):
+        import base64
+        import tempfile
         png = cls.frame(value, state, t)
         for tty in target_ttys("/Applications/kitty.app/Contents/MacOS/kitty"):
             # t=t: kitty reads then deletes the file, so every tty gets its own copy
@@ -309,7 +477,7 @@ class Kitty:
             seq = "\033_Ga=T,U=1,i=%d,f=100,t=t,c=%d,r=1,q=2;%s\033\\" % (cls.IMAGE_ID, CELLS, p64)
             write_tty(tty, seq.encode())
 
-    def apply(self, value, state):
+    def apply(self, value, state, slot=None):
         self.push_frame(value, state)
         if state in LIVE:
             start_animator()
@@ -327,6 +495,7 @@ def start_animator():
 
 def spawn_detached(args, env=None):
     """Run `python -m siga <args>` in the background, detached from this process."""
+    import subprocess
     subprocess.Popen([sys.executable, "-m", "siga", *args],
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True,
@@ -361,13 +530,13 @@ def animate(fps=20, idle_timeout=600):
 
 class Text:
     @staticmethod
-    def bar(st):
+    def bar(st, slot=0):
         n = round(float(st.get("value", 0)) * CELLS)
         if st.get("state") == "done":
             n = CELLS
         return "▰" * n + "▱" * (CELLS - n)
 
-    def apply(self, value, state):
+    def apply(self, value, state, slot=None):
         pass
 
 
@@ -375,24 +544,30 @@ class Record:
     """Appends every push to $SIGA_RECORD (JSONL); used by tests and `siga selftest`."""
     bar = Text.bar
 
-    def apply(self, value, state):
+    def apply(self, value, state, slot=None):
         path = os.environ.get("SIGA_RECORD")
         if path:
             with open(path, "a") as f:
-                f.write(json.dumps({"t": round(time.time(), 3), "value": round(value, 4), "state": state}) + "\n")
+                rec = {"t": round(time.time(), 3), "value": round(value, 4), "state": state}
+                if slot is not None:
+                    rec["slot"] = slot
+                f.write(json.dumps(rec) + "\n")
 
 
 BACKENDS = {"ghostty": Ghostty, "kitty": Kitty, "text": Text, "record": Record}
 
 
-def push(value, state, backend=None):
+def push(value, state, backend=None, slot=None):
     value = max(0.0, min(1.0, value))
-    save(value, state)
-    BACKENDS[backend or detect_backend()]().apply(value, state)
+    if slot is None:
+        slot = _read().get("last", 0)
+    save(value, state, slot)
+    BACKENDS[backend or detect_backend()]().apply(value, state, slot)
 
 
-def bar_string(backend=None):
-    return BACKENDS[backend or detect_backend()].bar(load())
+def bar_string(backend=None, slot=0):
+    backend = backend or detect_backend()
+    return BACKENDS[backend].bar(load(slot), slot)
 
 
 def parse_value(arg):
@@ -434,12 +609,12 @@ def history_add(key, seconds):
     HISTORY_FILE.write_text(json.dumps(data))
 
 
-def shim_active(window=2.0):
-    st = load()
+def shim_active(slot=None, window=2.0):
+    st = load(slot)
     return st.get("src") == "shim" and time.time() - st.get("time", 0) < window
 
 
-def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None, min_interval=0.25):
+def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None, min_interval=0.25, slot=None):
     """Copy a byte stream through while pushing its progress to the bars.
 
     read_chunk(timeout) returns bytes, b"" at EOF, or None when nothing arrived.
@@ -457,7 +632,7 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
     tee = open(os.environ["SIGA_TEE"], "ab") if os.environ.get("SIGA_TEE") else None
     t0 = time.time()
     last_push, last_val = 0.0, None
-    push(0.0, "run") if eta else push(0.0, "busy")
+    push(0.0, "run", slot=slot) if eta else push(0.0, "busy", slot=slot)
     while True:
         chunk = read_chunk(min_interval)
         if chunk == b"":
@@ -482,18 +657,18 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
             val, state = min(0.90, (now - t0) / eta), "run"
         else:
             continue
-        if shim_active():
+        if shim_active(slot):
             continue
         if now - last_push >= min_interval and (val, state) != last_val:
-            push(val, state)
+            push(val, state, slot=slot)
             last_push, last_val = now, (val, state)
     stream.close()
     if tee:
         tee.close()
     if cleaner:
         write_chunk(cleaner.close().encode())
-    if prog.trusted and not shim_active() and (prog.value, prog.state or "run") != last_val:
-        push(prog.value, prog.state or "run")
+    if prog.trusted and not shim_active(slot) and (prog.value, prog.state or "run") != last_val:
+        push(prog.value, prog.state or "run", slot=slot)
     if key:
         history_add(key, time.time() - t0)
         if step and prog.steps_seen:
@@ -508,6 +683,7 @@ def spawn(args, use_pty=False, env=None, columns=120):
     use_pty runs it on a pseudo-terminal, for tools that only draw progress there.
     """
     import select
+    import subprocess
     env = {**os.environ, **(env or {})}
     if not use_pty:
         child = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,

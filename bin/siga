@@ -35,4 +35,6 @@ if [ -z "$py" ] || [ ! -x "$py" ]; then
     mkdir -p "$cache" && printf '%s\n' "$py" > "$cache/python"
 fi
 
-PYTHONPATH="$root/src${PYTHONPATH:+:$PYTHONPATH}" exec "$py" -m siga "$@"
+# -S skips site.py (~10 ms): siga is stdlib-only and runs from src via PYTHONPATH, never
+# from site-packages, so nothing it needs lives there. Hooks run on every tool call.
+PYTHONPATH="$root/src${PYTHONPATH:+:$PYTHONPATH}" exec "$py" -S -m siga "$@"

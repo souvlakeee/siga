@@ -20,11 +20,8 @@ must not change what Claude Code does. SIGA_DISABLE=1, or `siga off` (a file in
 import json
 import os
 import re
-import shlex
-import subprocess
 import sys
 import time
-import tomllib
 from pathlib import Path
 
 from siga import core
@@ -63,6 +60,7 @@ def project_config():
 
 
 def patterns():
+    import tomllib
     rules = []
     files = [core.DATA / "wrap.default.toml", Path.home() / ".config" / "siga" / "config.toml"]
     proj = project_config()
@@ -134,6 +132,7 @@ def segment_heads(command):
 
 def split_filter(command):
     """(body, " | filter ...") when the command ends in an output filter, else (command, "")."""
+    import shlex
     _, pipes, seps = scan(command)
     if not pipes:
         return command, ""
@@ -156,6 +155,7 @@ def add_git_progress(command):
 
 
 def wrap(command, mode):
+    import shlex
     key = core.command_key(command)
     body, tail = split_filter(command)
     body = add_git_progress(body)
@@ -220,9 +220,7 @@ def pretooluse(event):
 def posttoolfailure(event):
     command = (event.get("tool_input") or {}).get("command", "")
     if "siga pipe" in command or "siga run" in command:
-        st = core.load()
-        if st.get("state") in core.LIVE:
-            core.push(float(st.get("value", 0.0)), "fail")
+        core.fail_live()  # only one slot is live at a time (the command that just died)
     return None
 
 
@@ -239,7 +237,6 @@ def messagedisplay(event):
     if label:
         # the bar fills from the moment it appears, not before
         text += f"\n\n  {label} {TOKEN}"
-        core.spawn_detached(["demo", "--now"])
     if TOKEN[0] not in text:
         return _display(text) if held else None
     keep = ""
@@ -254,7 +251,12 @@ def messagedisplay(event):
         held_file.write_text(keep)
     if TOKEN in text:
         backend = core.detect_backend()
-        text = text.replace(TOKEN, core.bar_string(backend))
+        while TOKEN in text:  # each token gets its own slot, so each bar keeps its own state
+            slot = core.allocate()
+            text = text.replace(TOKEN, core.bar_string(backend, slot), 1)
+        if label:
+            # the welcome/demo run fills the slot just handed to its token
+            core.spawn_detached(["demo", "--now"])
         if backend == "kitty":
             # a placeholder shows nothing until this window has the image
             core.spawn_detached(["refresh"])

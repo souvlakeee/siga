@@ -37,6 +37,22 @@ class Plan(unittest.TestCase):
         for word in ("font", "shader", "append"):
             self.assertIn(word, descs)
 
+    def test_stale_config_block_is_updated_not_duplicated(self):
+        cfg = Path(tempfile.mkstemp(suffix="config")[1])
+        stale = list(setup.ghostty_block())
+        stale[1] = "font-codepoint-map = U+10FB00-U+10FB13=Siga"  # a pre-slots block
+        cfg.write_text("\n".join(stale) + "\n")
+        try:
+            with mock.patch.object(setup.core, "detect_backend", return_value="ghostty"), \
+                 mock.patch.object(setup, "_same", return_value=True), \
+                 mock.patch.object(setup, "ghostty_config", return_value=cfg):
+                descs = [d for d, _ in setup.plan()]
+                self.assertTrue(any("update the siga block" in d for d in descs))
+                self.assertNotIn("append", " ".join(descs))
+                self.assertIn("out of date", " ".join(setup.missing()))
+        finally:
+            cfg.unlink(missing_ok=True)
+
 
 class Welcome(unittest.TestCase):
     def setUp(self):
