@@ -4,7 +4,9 @@
 
 **Progress bars that keep filling after they are printed.**
 
-*Σιγά-σιγά* (siga-siga) is Cypriot for "slowly, slowly". Claude writes one bar, once, and it fills in place while the job runs — no stream of "still building… 40%… 70%…". It keeps filling even after that line scrolls up.
+*Σιγά-σιγά* (siga-siga) is how Cyprus says "slowly, slowly", and how it lives. Nobody rushes the coffee, the afternoon or the man in the shade. Things get done in their own time, and that's fine — as long as you can see them getting done.
+
+siga brings that to your terminal. Claude writes one bar, once, and it fills in place while the job runs — no stream of "still building… 40%… 70%…". It keeps filling even after that line scrolls up. Glance over, finish your coffee.
 
 <br clear="left">
 
