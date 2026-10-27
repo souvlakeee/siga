@@ -4,23 +4,11 @@
 
 **Progress bars that keep filling after they are printed.**
 
-*Σιγά-σιγά* (siga-siga) is how Cyprus says "slowly, slowly", and how it lives. Nobody
-rushes the coffee, the afternoon or the man in the shade. Things get done in their own
-time, and that's fine, as long as you can see them getting done.
-
-siga brings that to your terminal. No message after message of
-"still building… 40%… 70%…". Claude writes one bar, once, and it
-fills in place. Glance over, see how far along it is, finish your coffee.
+*Σιγά-σιγά* (siga-siga) is Cypriot for "slowly, slowly". Claude writes one bar, once, and it fills in place while the job runs — no stream of "still building… 40%… 70%…". It keeps filling even after that line scrolls up.
 
 <br clear="left">
 
-Claude builds [bat](https://github.com/sharkdp/bat) (223 crates). The bar sits in the line where Claude
-started the job, not in a panel or the status line, and keeps filling even after that line
-scrolls up. (1.5× speed)
-
 <a href="docs/media/after.mp4"><img src="docs/media/after.gif" width="900" alt="With siga: a bar under Claude's message fills while cargo compiles, then turns green"></a>
-
-<p align="center"><img src="docs/media/how-it-works.svg" width="880" alt="Claude writes ⟦bar⟧ once; a MessageDisplay hook swaps it for 20 cells on screen. A PreToolUse hook wraps the job; siga reads its progress (12/40, 45%, ETA) and repaints those same cells in place: OSC 4 and a GPU shader in Ghostty, a PNG placeholder in Kitty, relayed by herdr."></p>
 
 ## Install
 
@@ -33,42 +21,46 @@ In Claude Code 2.1.275+:
 /siga:setup
 ```
 
-No restart needed: `/reload-plugins` loads siga's hooks into the running session.
+`/siga:setup` installs a font and a Ghostty shader (shown first, backed up). Kitty needs nothing. Python 3.11+, standard library only.
 
-`/siga:setup` lists its changes (a font, a shader, a marked Ghostty config block, all
-backed up) and asks first. Kitty needs nothing. Python 3.11+, standard library only.
+## How it works
 
-## Where it works
+A terminal never redraws text it has already printed. siga changes one thing anyway: in **Ghostty** the bar is a row of glyphs that a small **GPU shader repaints every frame** from a value siga sends as an OSC 4 palette color; in **Kitty** the bar is an image siga re-uploads in place. So the bar is a live region inside a line that was printed once. In Claude Code a hook swaps the `⟦bar⟧` token for the bar on screen and wraps build commands so siga can read their progress.
 
-| Terminal | Claude Code | OpenCode | Codex |
-|---|---|---|---|
-| Ghostty 1.3+ | ✅ | TBD | TBD |
-| Kitty 0.49+ | ✅ | TBD | TBD |
-| [herdr](https://herdr.dev) 0.9.5+ in Kitty | ✅ | TBD | TBD |
-| herdr 0.9.5+ in Ghostty | ✅ | TBD | TBD |
-| tmux, zellij | TBD | TBD | TBD |
-| WezTerm, iTerm2 | TBD | TBD | TBD |
+## Config
 
-✅ works · TBD not built yet.
-Tested on macOS. Linux should work but is untested; Windows is TBD. Want your setup in
-the table? [Open an issue](https://github.com/souvlakeee/siga/issues).
+Wrap patterns are TOML, under `[wrap]`. Three files merge, in order: the bundled defaults, your `~/.config/siga/config.toml` (all projects), and a repo-local `siga.toml` committed with one project.
 
-## Progress sources
+```toml
+# siga.toml
+[wrap]
+# piped through `siga pipe` (the default)
+pipe = [
+  '^mise\s+run\s+(deploy|build|test)',
+  '^make\b',
+  '^docker\s+build\b',
+]
+# run on a pseudo-terminal, for tools that only draw a bar on a terminal
+pty = [
+  '^cargo\s+(build|test)',
+  '^(npm|bun)\s+install\b',
+]
+```
 
-Build-like commands (npm, cargo, go, make, docker build, pytest, pip, uv, curl -o, wget,
-rsync, git clone, ffmpeg, yt-dlp, …) are wrapped automatically; output and exit codes pass
-through unchanged. Add patterns under `[wrap]` in `~/.config/siga/config.toml`, or in a
-repo-local `siga.toml` committed with the project. For anything else:
+Build-like commands (npm, cargo, go, make, docker, pytest, curl -o, rsync, git clone, ffmpeg, …) are wrapped out of the box, their output and exit code unchanged. A command that prints `12/40`, `45%` or ffmpeg `time=` fills exactly.
+
+**A command that prints no progress at all still gets a bar:** siga remembers how long it took (the median of its last 5 runs) and fills by that, holding at 90% until it exits — so the second run of your build or deploy has a real bar.
+
+For one-off commands:
 
 | Your command… | Use |
 |---|---|
 | prints `12/40` or `45%` | `siga run -- ./build.sh` |
 | draws its bar only on a terminal | `siga run --pty -- cargo build` |
 | uses tqdm, rich, click, cli-progress | `siga run --shim -- python train.py` |
-| prints named steps | `siga run --step '^==> ' -- ./deploy.sh` |
 | prints nothing useful | `siga run -- make` (learns the duration) |
 | is your own script | `siga set 3/10`, then `siga done` / `siga fail` |
-| must stay in a pipe | `set -o pipefail; tool 2>&1 \| siga pipe; siga end $?` |
+| must stay in a pipe | `tool 2>&1 \| siga pipe; siga end $?` |
 
 <details>
 <summary>30 tested examples: shell tools, build tools, Python, Node, Go, Rust, OSC 9;4</summary>
@@ -111,18 +103,9 @@ repo-local `siga.toml` committed with the project. For anything else:
 `bin/siga selftest` runs all of them offline.
 </details>
 
-Without Claude Code: `git clone https://github.com/souvlakeee/siga && cd siga`, then
-`bin/siga setup --apply` and `bin/siga run -- cargo build`.
+Works in Ghostty 1.3+ and Kitty 0.49+, including through [herdr](https://herdr.dev). Tested on macOS; Linux should work, Windows is TBD. Full mechanism: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
 
-## How it works
-
-- **Ghostty:** the bar is private-use glyphs in color keys; a shader repaints them from a
-  value siga sends as an OSC 4 palette color.
-- **Kitty:** the bar is an image placeholder; siga re-uploads the image.
-- **Claude Code:** hooks swap `⟦bar⟧` for the glyphs on screen, wrap build commands, and
-  teach Claude the one-bar-per-job rule.
-
-Details: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
+Without Claude Code: `git clone https://github.com/souvlakeee/siga && cd siga`, then `bin/siga setup --apply` and `bin/siga run -- cargo build`.
 
 ## Limitations
 
@@ -131,9 +114,7 @@ Details: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
 
 ## Thanks
 
-[ghostty-blackhole](https://github.com/s0xDk/ghostty-blackhole) (shader input via a color
-escape), Kitty's [Unicode placeholders](https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders),
-[Fira Code](https://github.com/tonsky/FiraCode) (the first progress glyphs in a font).
+[ghostty-blackhole](https://github.com/s0xDk/ghostty-blackhole) (shader input via a color escape), Kitty's [Unicode placeholders](https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders), [Fira Code](https://github.com/tonsky/FiraCode) (the first progress glyphs in a font).
 
 ## License
 
