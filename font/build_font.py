@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Build Siga.ttf: 20 full-cell sbix glyphs whose colors encode bar position.
+"""Build Siga.ttf: FAMILIES x 20 full-cell sbix glyphs whose colors encode bar position
+and which bar (slot) they belong to.
 
 Each glyph is split into STRIPES vertical stripes. Stripe slot s = cell*STRIPES + k
-is painted with key color (0xFF, KEY_G, KEY_B0 + 2*s). The shader recovers s from
-B/R and verifies the key with G/R, which survives blending against the background.
+is painted with key color (0xFF, KEY_G + family*GSTEP, KEY_B0 + 2*s). The shader recovers
+s from B/R, the family (bar slot) from G/R, and verifies the key — all of which survive
+blending against the background. Family j occupies codepoints FIRST_CP + j*CELLS ..., so a
+different ⟦bar⟧ token draws a different family and the shader reads that slot's palette entry.
 
 Why sbix, P3 and the OS/2 heights:
 - Ghostty 1.3 draws COLR glyphs in the text color; only sbix bitmaps keep their color.
@@ -27,8 +30,10 @@ FAMILY = "Siga"
 PS_NAME = "Siga-Regular"
 FIRST_CP = 0x10FB00
 CELLS = 20
+FAMILIES = 4  # one glyph family per bar slot (keep in step with core.SLOTS)
 STRIPES = 4
 KEY_G = 0x11
+GSTEP = 12   # green step between families; the shader matches G/R within half of this
 KEY_B0 = 0x30
 STRIKES = (16, 20, 24, 28, 32, 36, 40, 48, 56, 64, 80, 96, 128)
 P3_PROFILE = Path("/System/Library/ColorSync/Profiles/Display P3.icc")
@@ -52,13 +57,13 @@ def rect():
     return pen.glyph()
 
 
-def cell_png(cell, ppem, icc):
+def cell_png(family, cell, ppem, icc):
     w = round(ADVANCE * ppem / UPM)
     h = round((ASCENT - DESCENT) * ppem / UPM)
     im = Image.new("RGBA", (w, h))
     for x in range(w):
         slot = cell * STRIPES + x * STRIPES // w
-        color = (0xFF, KEY_G, KEY_B0 + 2 * slot, 0xFF)
+        color = (0xFF, KEY_G + family * GSTEP, KEY_B0 + 2 * slot, 0xFF)
         for y in range(h):
             im.putpixel((x, y), color)
     buf = io.BytesIO()
@@ -67,7 +72,7 @@ def cell_png(cell, ppem, icc):
 
 
 def build(out: Path):
-    bars = [f"bar{i:02d}" for i in range(CELLS)]
+    bars = [f"bar{j:d}_{i:02d}" for j in range(FAMILIES) for i in range(CELLS)]
     order = [".notdef", *bars]
     icc = P3_PROFILE.read_bytes()
 
@@ -104,7 +109,7 @@ def build(out: Path):
             strike.glyphs[name] = SbixGlyph(
                 glyphName=name, graphicType="png ",
                 originOffsetX=0, originOffsetY=round(DESCENT * ppem / UPM),
-                imageData=cell_png(i, ppem, icc),
+                imageData=cell_png(i // CELLS, i % CELLS, ppem, icc),
             )
         sbix.strikes[ppem] = strike
     fb.font["sbix"] = sbix

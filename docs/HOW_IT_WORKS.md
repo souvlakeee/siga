@@ -10,33 +10,36 @@ your build ──► siga run / pipe / hook ──► parser ──► state fil
                                                         │
                                    ┌────────────────────┴───────────────────┐
                                 Ghostty                                    Kitty
-                      OSC 4 palette entry 254                  PNG re-uploaded under one id
-                      read by a custom shader                  shown by Unicode placeholders
+                 OSC 4 palette entries 252-255                 PNG re-uploaded under one id
+                 (one per slot), read by a shader              shown by Unicode placeholders
 ```
 
 ## Ghostty: glyphs plus a shader
 
-- **The font.** `Siga.ttf` has 20 glyphs at U+10FB00–U+10FB13, one per cell of the bar.
-  They are color bitmaps (`sbix`), because Ghostty draws COLR glyphs in the text color,
-  which would lose the key. Every pixel is a "key" color: red 0xFF, green 0x11, blue
-  0x30 + 2·slot, with 4 slots per cell. The bitmaps carry a Display P3 ICC profile, so
-  macOS doesn't shift the key colors on the way to the screen.
-- **The config.** `font-codepoint-map = U+10FB00-U+10FB13=Siga` sends only those code points
+- **The font.** `Siga.ttf` has 80 glyphs at U+10FB00–U+10FB4F: four families of 20 cells,
+  one family per bar slot. They are color bitmaps (`sbix`), because Ghostty draws COLR
+  glyphs in the text color, which would lose the key. Every pixel is a "key" color: red
+  0xFF, green 0x11 + 12·bar (which slot, 0–3), blue 0x30 + 2·slot (which cell position, 4
+  slots per cell). The bitmaps carry a Display P3 ICC profile, so macOS doesn't shift the
+  key colors on the way to the screen.
+- **The config.** `font-codepoint-map = U+10FB00-U+10FB4F=Siga` sends only those code points
   to the font. `custom-shader-animation = true` runs the shader every frame.
 - **The shader** (`src/siga/data/siga.glsl`) checks each pixel. A pixel whose green/red
-  and blue/red ratios match the key is part of the bar, and the ratio gives its slot,
-  even after blending against the background. The shader then paints a segmented bar
-  over the glyph's cell: 40 segments, rounded corners, a moving gradient while running,
-  green when done, red when failed.
-- **The value channel.** siga writes the value into palette entry 254 with OSC 4. The
-  shader reads it from the palette uniform. Red and green carry 10 bits of progress,
-  blue carries the state (clear, run, busy, done, fail). Every encoded color stays near
-  the default entry, so a program that uses color 254 still looks right. The cursor
-  color (OSC 12) would be the obvious channel, but Ghostty only refreshes shader
+  ratio matches one of the four key greens is part of a bar — the ratio says which slot —
+  and its blue/red ratio gives the cell position, both surviving the blend against the
+  background. The shader then paints one rounded box per cell — 20 across the bar, a gap
+  between them, a moving gradient while running, green when done, red when failed. Two
+  segments per cell set the fill resolution, but the box drawn is the whole cell.
+- **The value channel.** Each slot's value goes in its own palette entry (252–255) with
+  OSC 4; the shader reads the one matching the pixel's slot, so a finished bar keeps its
+  own entry and freezes while the next bar's entry moves. Red and green carry 10 bits of
+  progress, blue carries the state (clear, run, busy, done, fail). Every encoded color
+  stays near the grayscale-ramp entry it overwrites, so those colors still look right. The
+  cursor color (OSC 12) would be the obvious channel, but Ghostty only refreshes shader
   uniforms when the screen is marked dirty, and OSC 12 doesn't mark it. OSC 4 does.
 - **Glyph clipping.** Ghostty clips a glyph to its cell box (about 15×28 px in a 17×38 px
-  cell at default size). The shader finds the real cell edges by scanning, and the design
-  draws two segments per cell, so the gaps line up.
+  cell at default size). The shader finds the real cell edges by scanning, and draws the
+  box within them with the gap at the cell boundaries, so the end cells are full boxes.
 
 ## Kitty: Unicode placeholders
 
@@ -100,11 +103,19 @@ counts named steps instead, and remembers how many there were.
 and click, and a Node `--require` patches cli-progress and progress. Each reports its
 value with `siga set`.
 
-## One state per window
+## Slots per window
 
-Each window's bar is separate. siga finds the tty of the window it runs in by walking up
+Each window keeps its own state. siga finds the tty of the window it runs in by walking up
 its parent processes, and keeps `~/.cache/siga/state-<tty>.json`. Two Claude Code sessions
-in two windows don't overwrite each other's bars. Two jobs in one window share one bar.
+in two windows don't overwrite each other's bars.
+
+Within a window, each `⟦bar⟧` token is handed one of four slots (a recycling ring) and the
+command that follows binds it, so a finished bar keeps its own value and freezes while the
+next job's bar fills. Jobs still run one at a time — only one bar is live at a moment. A
+fifth bar reuses the oldest slot, so a bar more than four jobs back changes when its slot is
+recycled. A wrapped command with no token of its own drives a scratch slot that nothing
+draws. On Kitty all slots still share one image, so there a finished bar is overwritten by
+the next (Ghostty, which herdr runs on, is the independent-bar backend).
 
 ## Claude Code hooks
 

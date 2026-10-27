@@ -49,11 +49,31 @@ def ghostty_config():
 def ghostty_block():
     return [
         BEGIN,
-        "font-codepoint-map = U+10FB00-U+10FB13=Siga",
+        "font-codepoint-map = U+10FB00-U+10FB4F=Siga",
         f"custom-shader = {SHADER}",
         "custom-shader-animation = true",
         END,
     ]
+
+
+def _current_block(text):
+    """The siga block as it stands in `text` (BEGIN..END inclusive), or None."""
+    lines = text.splitlines()
+    try:
+        i = lines.index(BEGIN)
+        j = lines.index(END, i)
+    except ValueError:
+        return None
+    return lines[i:j + 1]
+
+
+def _rewrite_block(path):
+    """Replace a stale siga block in place (e.g. after the glyph range grew)."""
+    _backup(path)
+    lines = path.read_text().splitlines()
+    i = lines.index(BEGIN)
+    j = lines.index(END, i)
+    path.write_text("\n".join(lines[:i] + ghostty_block() + lines[j + 1:]).rstrip("\n") + "\n")
 
 
 def _same(a, b):
@@ -92,6 +112,10 @@ def plan():
         if BEGIN not in text:
             block = "\n".join("    + " + l for l in ghostty_block())
             steps.append((f"append to {cfg} (backup kept):\n{block}", lambda: _append(cfg, ghostty_block())))
+        elif _current_block(text) != ghostty_block():
+            block = "\n".join("    ~ " + l for l in ghostty_block())
+            steps.append((f"update the siga block in {cfg} (backup kept):\n{block}",
+                          lambda: _rewrite_block(cfg)))
 
     for path in [p for p in (ghostty_config(), HOME / ".config" / "kitty" / "kitty.conf") if p.exists()]:
         drop, lines = _legacy_lines(path.read_text())
@@ -115,17 +139,27 @@ def missing():
         text = ghostty_config().read_text() if ghostty_config().exists() else ""
         if BEGIN not in text:
             out.append("Ghostty is not configured for siga")
+        elif _current_block(text) != ghostty_block():
+            out.append("the Ghostty siga config is out of date")
     return out
 
 
 def refresh_installed():
-    """After a plugin update, keep the installed shader and font in step with this version."""
+    """After a plugin update, keep the installed shader, font and config block (for users
+    who already opted in) in step with this version."""
+    changed = False
     if SHADER.exists() and not _same(core.DATA / "siga.glsl", SHADER):
         _copy(core.DATA / "siga.glsl", SHADER)
-        reload_terminals()
+        changed = True
     font = font_dest()
     if font.exists() and not _same(core.DATA / "Siga.ttf", font):
         _copy(core.DATA / "Siga.ttf", font)
+    cfg = ghostty_config()
+    if cfg.exists() and BEGIN in cfg.read_text() and _current_block(cfg.read_text()) != ghostty_block():
+        _rewrite_block(cfg)  # e.g. the glyph range grew between versions
+        changed = True
+    if changed:
+        reload_terminals()
 
 
 def _copy(src, dst):

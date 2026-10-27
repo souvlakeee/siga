@@ -1,7 +1,9 @@
 """Which commands the PreToolUse hook wraps, and how."""
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from siga import hooks as hook  # noqa: E402
@@ -90,6 +92,31 @@ class Wrap(unittest.TestCase):
     def test_git_progress(self):
         self.assertIn("git clone --progress https://x", hook.wrap("git clone https://x", "pipe"))
         self.assertIn("git pull --progress", hook.wrap("git pull --progress", "pipe").replace("--progress --progress", "X"))
+
+
+class MessageDisplay(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.patches = [
+            mock.patch.object(hook.core, "CACHE", Path(self.tmp.name)),
+            mock.patch.object(hook.core, "WELCOME", Path(self.tmp.name) / "welcome"),
+            mock.patch.dict(hook.os.environ, {"SIGA_TTY": "/dev/ttysTEST", "SIGA_BACKEND": "ghostty"}),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def test_two_tokens_get_two_slots(self):
+        with mock.patch.object(hook.core, "detect_backend", return_value="ghostty"):
+            out = hook.messagedisplay({"message_id": "m", "delta": "a ⟦bar⟧\nb ⟦bar⟧", "final": True})
+        shown = out["hookSpecificOutput"]["displayContent"]
+        self.assertNotIn(hook.TOKEN, shown)
+        self.assertIn(chr(0x10FB00), shown)       # family 0 (slot 0)
+        self.assertIn(chr(0x10FB00 + 20), shown)  # family 1 (slot 1): a distinct bar
 
 
 if __name__ == "__main__":

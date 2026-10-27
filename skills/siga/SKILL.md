@@ -46,5 +46,6 @@ For anything else, pick the matching form:
 | is your own script | call `siga set 3/10` (or `30%`) between steps, then `siga done` / `siga fail`; or print `\e]9;4;1;30\e\\` (OSC 9;4) |
 | must stay in a pipeline | `set -o pipefail; cmd 2>&1 \| siga pipe; siga end $?` |
 
-`siga --help` lists every command. Only one bar value exists per terminal window, so
-run long jobs one at a time if each should have its own bar.
+`siga --help` lists every command. Each `⟦bar⟧` gets its own bar, and a finished one
+freezes at its result, so a row of jobs each keep their own state. Only one bar is live at
+a time, so run long jobs one after another, not in parallel.

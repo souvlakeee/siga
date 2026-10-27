@@ -111,7 +111,7 @@ Without Claude Code: `git clone https://github.com/souvlakeee/siga && cd siga`, 
 
 ## Limitations
 
-- One bar per terminal window; parallel jobs share it.
+- Up to four independent bars per window: each `⟦bar⟧` keeps its own state, so a finished bar freezes while the next fills. Jobs still run one at a time; a fifth bar recycles the oldest slot. On Kitty all bars share one image.
 - `siga off` / `siga on` pause the hooks; `siga setup --remove` uninstalls.
 
 ## Thanks

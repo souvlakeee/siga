@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0 (2026-10-27)
+
+- Bars are now independent. Each `⟦bar⟧` gets its own slot (a ring of four), so a finished
+  bar freezes at its own result while the next job's bar fills, instead of every bar on
+  screen following one shared value. Jobs still run one at a time; a fifth bar recycles the
+  oldest slot, and a wrapped command with no token of its own drives a scratch slot that
+  nothing draws. Ghostty only; on Kitty all bars still share one image.
+- Ghostty: the Siga font now has four glyph families (U+10FB00–U+10FB4F), each slot keyed a
+  distinct green and reading its own palette entry (252–255); the shader decodes the slot
+  per pixel. `siga <verb> --slot N` acts on a specific slot.
+- The bar now draws one rounded box per cell with the gap at the cell boundaries, so it no
+  longer starts and ends with a half box (the gap used to fall inside each cell, pairing
+  segments across the joins). Both the Ghostty shader and the Kitty image.
+- Faster hooks. The `ps` that finds the window's tty is now cached on disk per terminal
+  pane, not just per process, so a wrapped command no longer pays the ~90–180 ms `ps` before
+  its bar appears — the first process in the pane resolves it, the rest read the cache. The
+  launcher also starts Python with `-S` and the hooks import `tomllib`/`subprocess`/`shlex`
+  only when a path needs them, trimming ~4–7 ms off every tool-call and message hook. No
+  setup step; it takes effect on the next plugin load.
+- **Reaching the bar changes needs `siga setup --apply` and a Ghostty config reload** (the
+  glyph range grew). A new session refreshes the installed font, shader and config block for
+  users who already opted in, then reloads Ghostty; SessionStart flags an out-of-date block.
+
 ## 0.2.1 (2026-10-27)
 
 - A time-estimated bar now holds at 90%, not 99%, while the job is still running.
