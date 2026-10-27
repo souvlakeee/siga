@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 (2026-10-27)
+
+- A time-estimated bar now holds at 90%, not 99%, while the job is still running.
+  A near-full bar read as "done"; the last tenth fills only on the real exit, so
+  overrunning the estimate looks like "almost there", not finished. A trusted N/M
+  count is still exact and uncapped.
+
 ## 0.2.0 (2026-10-27)
 
 - Config is TOML. Wrap patterns live under `[wrap]` (`pipe = [...]`, `pty = [...]`) in

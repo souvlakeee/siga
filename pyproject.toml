@@ -1,6 +1,6 @@
 [project]
 name = "siga"
-version = "0.2.0"
+version = "0.2.1"
 description = "Progress bars that keep filling after they are printed: live bars inside terminal text, for Claude Code and any CLI (Ghostty, Kitty)."
 readme = "README.md"
 license = "MIT"
