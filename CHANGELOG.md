@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (2026-10-27)
+
+- Config is TOML. Wrap patterns live under `[wrap]` (`pipe = [...]`, `pty = [...]`) in
+  `~/.config/siga/config.toml`, the bundled `data/wrap.default.toml`, and a new repo-local
+  `siga.toml` (nearest one walking up from the working directory, or `$SIGA_PROJECT_CONFIG`)
+  so a project can commit its own patterns. Replaces the line-based `wrap.txt`.
+- Requires Python 3.11+ (for stdlib `tomllib`). Still zero third-party dependencies.
+- A backgrounded command (a top-level `&`, told apart from `&&` and redirections) is no
+  longer auto-wrapped, so the bar can't paint `done` while the detached job runs (#1).
+
 ## 0.1.9 (2026-10-25)
 
 - Live bars inside herdr 0.9.5+. siga finds the real terminal from the herdr client.

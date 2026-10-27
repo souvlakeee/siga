@@ -1,12 +1,12 @@
 [project]
 name = "siga"
-version = "0.1.9"
+version = "0.2.0"
 description = "Progress bars that keep filling after they are printed: live bars inside terminal text, for Claude Code and any CLI (Ghostty, Kitty)."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Maksim Muravev" }]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = []
 keywords = ["progress-bar", "terminal", "ghostty", "kitty", "claude-code", "shader"]
 classifiers = [

@@ -113,7 +113,8 @@ The plugin (`hooks/hooks.json`) runs `bin/siga hook <event>`:
 - **SessionStart** tells Claude the one-bar-per-job rule, refreshes the installed shader and
   font after a plugin update, and says if `/siga:setup` hasn't run yet.
 - **PreToolUse (Bash)** rewrites build-like commands (patterns in
-  `src/siga/data/wrap.default.txt`, plus `~/.config/siga/wrap.txt`) into
+  `src/siga/data/wrap.default.toml`, `~/.config/siga/config.toml`, and a repo-local
+  `siga.toml`, all under `[wrap]`) into
   `set -o pipefail; { cmd; } 2>&1 | siga pipe; siga end $?`, or `siga run --pty` for tools
   that need a terminal. A trailing filter such as `| tail -20` stays after siga, so the
   bar still sees everything. Commands that already call siga are left alone.
@@ -129,6 +130,6 @@ The plugin (`hooks/hooks.json`) runs `bin/siga hook <event>`:
 ## The launcher
 
 `bin/siga` is a POSIX shell script. It finds Python once (a uv-managed Python if uv is
-installed, else `python3` 3.9 or newer), caches the path, and runs `python -m siga` with
+installed, else `python3` 3.11 or newer), caches the path, and runs `python -m siga` with
 `src/` on `PYTHONPATH`. siga uses the standard library only, so there's nothing to install.
 A hook call takes about 25 ms, almost all of it Python startup.
