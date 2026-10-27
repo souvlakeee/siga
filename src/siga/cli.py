@@ -146,8 +146,7 @@ def main(argv):
         core.push(0.0, "clear", slot=core.resolve_slot(slot_opt))
     elif cmd == "refresh":
         for slot in range(core.SLOTS):  # a new window needs every slot's palette entry back
-            rec = core.load(slot)
-            core.push(float(rec.get("value", 0.0)), rec.get("state", "clear"), slot=slot)
+            core.reapply(slot)
     elif cmd == "bar":
         print(core.bar_string())
     elif cmd == "demo":

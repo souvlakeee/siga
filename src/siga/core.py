@@ -123,113 +123,201 @@ def own_tty():
 
 
 def _scoped(name):
-    tty = own_tty()
+    return _scoped_to(own_tty(), name)
+
+
+def _scoped_to(tty, name):
     if not tty:
         return CACHE / name
     stem, _, ext = name.partition(".")
     return CACHE / f"{stem}-{tty.rsplit('/', 1)[-1]}.{ext}"
 
 
-def state_file():
+GHOSTTY_APP = "/Applications/Ghostty.app/Contents/MacOS/ghostty"
+
+
+def window_tty():
+    """The tty a bar's palette/image lands on — the scope a Ghostty palette is shared within.
+    For Ghostty+herdr it's the one client tty behind every pane; otherwise it's own_tty(), so
+    the window/pane split below collapses to one pane and nothing changes off that path."""
+    if detect_backend() == "ghostty":
+        t = target_ttys(GHOSTTY_APP)
+        return t[0] if t else own_tty()
+    return own_tty()
+
+
+def state_file():  # the pre-0.4 single per-pane doc, read once to migrate into win/pane docs
     return _scoped("state.json")
+
+
+def win_file():
+    return _scoped_to(window_tty(), "win.json")
+
+
+def pane_file():
+    return _scoped_to(own_tty(), "pane.json")
 
 
 def _blank():
     return {"value": 0.0, "state": "clear", "time": 0}
 
 
-def _read():
-    """The whole per-window record: a slot per recent bar, a scratch slot, a recycle
-    cursor, and a queue of slots handed out to ⟦bar⟧ tokens awaiting their command."""
+def _legacy():
+    """The pre-0.4 single per-pane doc, read once to seed the split docs below."""
     try:
-        doc = json.loads(state_file().read_text())
+        return json.loads(state_file().read_text())
     except (OSError, ValueError):
-        doc = {}
-    if "slots" not in doc:  # migrate an old flat {value,state,time} record into slot 0
-        doc = {"slots": [dict(doc)] if doc.get("state") else []}
-    while len(doc["slots"]) < SLOTS:
-        doc["slots"].append(_blank())
-    doc.setdefault("scratch", _blank())
-    doc.setdefault("cursor", 0)
-    doc.setdefault("pending", [])
-    doc.setdefault("last", 0)
-    return doc
+        return {}
 
 
-def _write(doc):
+def _atomic_write(path, doc):
     CACHE.mkdir(parents=True, exist_ok=True)
-    path = state_file()
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(doc))
     tmp.replace(path)
 
 
+def _win_read(path=None):
+    """The window's shared bars + recycle cursor — one palette per window (see window_tty).
+    Every pane of the window reads and writes this, so two panes never claim the same slot
+    (hence the glyph of pane A's bar and pane B's bar point at different palette entries)."""
+    try:
+        doc = json.loads((path or win_file()).read_text())
+    except (OSError, ValueError):
+        old = _legacy()  # migrate slots/cursor (or a flat record) from the old per-pane doc
+        doc = {"slots": old.get("slots") or ([dict(old)] if old.get("state") else []),
+               "cursor": old.get("cursor", 0)}
+    doc.setdefault("slots", [])
+    while len(doc["slots"]) < SLOTS:
+        doc["slots"].append(_blank())
+    doc.setdefault("cursor", 0)
+    return doc
+
+
+def _win_update(fn):
+    """Read-modify-write the window doc under an flock: several panes write it at once, so an
+    unlocked cycle would let two allocate()s read one cursor and claim the same slot."""
+    import fcntl
+    CACHE.mkdir(parents=True, exist_ok=True)
+    path = win_file()  # resolve the window once; save() runs this up to ~4x/s while tracking
+    with open(path.with_suffix(".lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        doc = _win_read(path)
+        out = fn(doc)
+        _atomic_write(path, doc)
+        return out
+
+
+def _pane_read():
+    """Per-pane binding: the ⟦bar⟧ tokens awaiting a command, the last slot this pane touched,
+    and its scratch bar. Pane-local (one writer), and `pending` must stay so or one pane's
+    command could pop another pane's queued token."""
+    try:
+        doc = json.loads(pane_file().read_text())
+    except (OSError, ValueError):
+        old = _legacy()
+        doc = {"pending": old.get("pending", []), "last": old.get("last", 0),
+               "scratch": old.get("scratch", _blank())}
+    doc.setdefault("pending", [])
+    doc.setdefault("last", 0)
+    doc.setdefault("scratch", _blank())
+    return doc
+
+
+def _pane_write(doc):
+    _atomic_write(pane_file(), doc)
+
+
 def save(value, state, slot=None):
-    doc = _read()
-    if slot is None:
-        slot = doc.get("last", 0)
     rec = {"value": value, "state": state, "time": time.time()}
     if os.environ.get("SIGA_ORIGIN"):  # "shim": the value came from inside the app
         rec["src"] = os.environ["SIGA_ORIGIN"]
+    if slot is None:
+        slot = _pane_read().get("last", 0)
     if slot >= SLOTS:
-        doc["scratch"] = rec
+        pane = _pane_read()
+        pane["scratch"] = rec
+        _pane_write(pane)
     else:
-        doc["slots"][slot] = rec
-        doc["last"] = slot
-    _write(doc)
+        rec["pane"] = own_tty() or ""  # ownership: only this pane may fail/end this window slot
+        _win_update(lambda win: win["slots"].__setitem__(slot, rec))
+        pane = _pane_read()
+        pane["last"] = slot
+        _pane_write(pane)
 
 
 def load(slot=None):
-    doc = _read()
     if slot is None:
-        slot = doc.get("last", 0)
-    return doc["scratch"] if slot >= SLOTS else doc["slots"][slot]
+        slot = _pane_read().get("last", 0)
+    if slot >= SLOTS:
+        return _pane_read().get("scratch", _blank())
+    return _win_read()["slots"][slot]
 
 
 def allocate():
-    """Hand the next slot to a ⟦bar⟧ token and queue it for the command that follows."""
-    doc = _read()
-    slot = doc.get("cursor", 0) % SLOTS
-    doc["cursor"] = (slot + 1) % SLOTS
-    doc["slots"][slot] = _blank()
-    doc["last"] = slot
-    doc["pending"] = doc.get("pending", []) + [[slot, time.time()]]
-    _write(doc)
+    """Hand a ⟦bar⟧ token a window slot and queue it for the command that follows. Scans from
+    the cursor for a slot that is not live (a frozen or clear one is reclaimable — the accepted
+    recycle-clobber); only if all four are live does it take the oldest, so a token never blanks
+    another pane's running bar in the shared window."""
+    now = time.time()
+
+    def held(rec):  # live, or reserved by a token still awaiting its command (pending TTL)
+        return rec.get("state") in LIVE or now - rec.get("reserved", 0) < 300
+
+    def claim(win):
+        order = [(win["cursor"] + i) % SLOTS for i in range(SLOTS)]
+        free = [i for i in order if not held(win["slots"][i])]
+        slot = free[0] if free else min(order, key=lambda i: win["slots"][i].get("time", 0))
+        # reserve it so another pane doesn't reclaim the clear slot before the command pushes
+        win["slots"][slot] = {"value": 0.0, "state": "clear", "time": now,
+                              "pane": own_tty() or "", "reserved": now}
+        win["cursor"] = (slot + 1) % SLOTS
+        return slot
+    slot = _win_update(claim)
+    pane = _pane_read()
+    pane["pending"] = pane.get("pending", []) + [[slot, time.time()]]
+    pane["last"] = slot
+    _pane_write(pane)
     return slot
 
 
 def resolve_slot(explicit=None, default="last", ttl=300):
-    """The slot a `siga` verb acts on: explicit --slot, else the oldest queued token,
-    else a fallback — the last-touched slot, a scratch slot (nothing renders it), or the
-    one bar still live (for `siga end`, whose token the pipe already consumed)."""
+    """The slot a `siga` verb acts on: explicit --slot, else the oldest queued token, else a
+    fallback — the last-touched slot, a scratch slot (nothing renders it), or the one bar still
+    live and owned by this pane (for `siga end`, whose token the pipe already consumed)."""
     if explicit is None and os.environ.get("SIGA_SLOT"):
         explicit = os.environ["SIGA_SLOT"]  # a shimmed child drives its parent's slot
     if explicit is not None:
         return int(explicit)
-    doc = _read()
-    pend = [e for e in doc.get("pending", []) if time.time() - e[1] < ttl]
+    pane = _pane_read()
+    pend = [e for e in pane.get("pending", []) if time.time() - e[1] < ttl]
     slot = pend.pop(0)[0] if pend else None
-    doc["pending"] = pend
-    _write(doc)
+    pane["pending"] = pend
+    _pane_write(pane)
     if slot is not None:
         return slot
     if default == "scratch":
         return SLOTS
     if default == "live":
-        for i, rec in enumerate(doc["slots"]):
-            if rec.get("state") in LIVE:
+        me = own_tty() or ""
+        for i, rec in enumerate(_win_read()["slots"]):
+            if rec.get("state") in LIVE and rec.get("pane", me) == me:  # absent = legacy, ours
                 return i
-        if doc.get("scratch", {}).get("state") in LIVE:
+        if pane.get("scratch", {}).get("state") in LIVE:
             return SLOTS
-    return doc.get("last", 0)
+    return pane.get("last", 0)
 
 
 def fail_live():
-    """Mark every live bar failed (a wrapped command died before `siga end`)."""
-    doc = _read()
-    for slot, rec in list(enumerate(doc["slots"])) + [(SLOTS, doc.get("scratch", _blank()))]:
-        if rec.get("state") in LIVE:
-            push(float(rec.get("value", 0.0)), "fail", slot=slot)
+    """Fail this pane's live bars (a wrapped command died before `siga end`). The `pane` stamp
+    keeps it from touching another pane's running bar in the same window."""
+    me = own_tty() or ""
+    for i, rec in enumerate(_win_read()["slots"]):
+        if rec.get("state") in LIVE and rec.get("pane", me) == me:  # absent = legacy, ours
+            push(float(rec.get("value", 0.0)), "fail", slot=i)
+    scratch = _pane_read().get("scratch", _blank())
+    if scratch.get("state") in LIVE:
+        push(float(scratch.get("value", 0.0)), "fail", slot=SLOTS)
 
 
 def detect_backend(env=os.environ):
@@ -560,9 +648,17 @@ BACKENDS = {"ghostty": Ghostty, "kitty": Kitty, "text": Text, "record": Record}
 def push(value, state, backend=None, slot=None):
     value = max(0.0, min(1.0, value))
     if slot is None:
-        slot = _read().get("last", 0)
+        slot = _pane_read().get("last", 0)
     save(value, state, slot)
     BACKENDS[backend or detect_backend()]().apply(value, state, slot)
+
+
+def reapply(slot, backend=None):
+    """Repaint a slot from its saved state without re-saving it (new windows, restarts) — so
+    refresh doesn't overwrite the window slot's `pane` owner with the refreshing pane's."""
+    rec = load(slot)
+    BACKENDS[backend or detect_backend()]().apply(
+        float(rec.get("value", 0.0)), rec.get("state", "clear"), slot)
 
 
 def bar_string(backend=None, slot=0):

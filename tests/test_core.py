@@ -129,7 +129,7 @@ class GhosttyApply(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.patches = [
             mock.patch.object(core, "CACHE", Path(self.tmp.name)),
-            mock.patch.dict(core.os.environ, {"SIGA_TTY": "/dev/ttysTEST"}),
+            mock.patch.dict(core.os.environ, {"SIGA_TTY": "/dev/ttysTEST", "SIGA_BACKEND": "ghostty"}),
             mock.patch.object(core, "target_ttys", return_value=["/dev/x"]),
             mock.patch.object(core, "write_tty"),
         ]
@@ -148,6 +148,90 @@ class GhosttyApply(unittest.TestCase):
     def test_scratch_slot_writes_nothing(self):
         core.push(0.5, "run", backend="ghostty", slot=core.SLOTS)
         self.mocks[3].assert_not_called()
+
+
+class WindowSlots(unittest.TestCase):
+    """Panes of one Ghostty window (herdr) share the palette, so they must claim distinct
+    slots, never blank each other's live bar, and fail only their own (issue #4)."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.patches = [
+            mock.patch.object(core, "CACHE", Path(self.tmp.name)),
+            mock.patch.dict(core.os.environ, {"SIGA_BACKEND": "record"}),
+            mock.patch.object(core, "window_tty", return_value="/dev/win"),
+            mock.patch.object(core, "own_tty", return_value="/dev/paneA"),
+        ]
+        self.mocks = [p.start() for p in self.patches]
+        self.own = self.mocks[3]
+        for k in ("SIGA_TTY", "SIGA_SLOT"):
+            core.os.environ.pop(k, None)
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def pane(self, tty):
+        self.own.return_value = tty
+
+    def _run_a_bar(self, value):  # allocate a token, bind it, push it live; returns the slot
+        core.allocate()
+        slot = core.resolve_slot()
+        core.push(value, "run", slot=slot)
+        return slot
+
+    def test_two_panes_claim_distinct_entries(self):
+        self.pane("/dev/paneA"); a = self._run_a_bar(0.3)
+        self.pane("/dev/paneB"); b = self._run_a_bar(0.6)
+        self.assertNotEqual(a, b)
+        win = core._win_read()["slots"]
+        self.assertEqual(win[a]["pane"], "/dev/paneA")
+        self.assertEqual(win[b]["pane"], "/dev/paneB")
+
+    def test_allocate_skips_another_panes_live_slot(self):
+        self.pane("/dev/paneA"); self._run_a_bar(0.3)          # A live on slot 0
+        self.pane("/dev/paneB")
+        got = [self._run_a_bar(0.5) for _ in range(3)]
+        self.assertNotIn(0, got)                                # A's live bar is never reclaimed
+        self.assertEqual(sorted(got), [1, 2, 3])
+
+    def test_allocate_skips_another_panes_reserved_slot(self):
+        self.pane("/dev/paneA"); core.allocate()               # reserves slot 0, command not run
+        self.pane("/dev/paneB")
+        got = [core.allocate() for _ in range(3)]
+        self.assertNotIn(0, got)                                # A's reserved token isn't stolen
+        self.assertEqual(sorted(got), [1, 2, 3])
+
+    def test_fifth_bar_wraps_onto_the_oldest(self):
+        self.pane("/dev/paneA"); self._run_a_bar(0.3)          # slot 0, oldest
+        self.pane("/dev/paneB"); [self._run_a_bar(0.5) for _ in range(3)]  # 1,2,3
+        core.allocate()                                         # all four live -> oldest
+        self.assertEqual(core.resolve_slot(), 0)
+
+    def test_fail_live_only_fails_this_pane(self):
+        self.pane("/dev/paneA"); self._run_a_bar(0.3)          # A live, slot 0
+        self.pane("/dev/paneB"); self._run_a_bar(0.6)          # B live, slot 1
+        self.pane("/dev/paneA"); core.fail_live()              # A's command dies
+        win = core._win_read()["slots"]
+        self.assertEqual(win[0]["state"], "fail")              # A failed
+        self.assertEqual(win[1]["state"], "run")               # B still running
+
+    def test_migrates_a_legacy_doc(self):
+        self.pane("/dev/paneA")
+        core.state_file().write_text('{"value": 0.5, "state": "run", "time": 1}')
+        self.assertEqual(core.load(0), {"value": 0.5, "state": "run", "time": 1})
+        core.fail_live()  # a migrated live bar has no owner tag but is still failable by its pane
+        self.assertEqual(core.load(0)["state"], "fail")
+
+
+class WindowTty(unittest.TestCase):
+    def test_degrades_to_the_pane_when_herdr_has_no_backend(self):
+        with mock.patch.object(core, "detect_backend", return_value="ghostty"), \
+             mock.patch.object(core, "target_ttys", return_value=[]), \
+             mock.patch.object(core, "own_tty", return_value="/dev/paneX"):
+            self.assertEqual(core.window_tty(), "/dev/paneX")
 
 
 class HostCache(unittest.TestCase):

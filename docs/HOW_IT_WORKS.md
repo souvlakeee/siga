@@ -105,17 +105,28 @@ value with `siga set`.
 
 ## Slots per window
 
-Each window keeps its own state. siga finds the tty of the window it runs in by walking up
-its parent processes, and keeps `~/.cache/siga/state-<tty>.json`. Two Claude Code sessions
-in two windows don't overwrite each other's bars.
+State is split by what shares a palette. The four bars and the recycle cursor live in a
+**window** doc, `~/.cache/siga/win-<window-tty>.json`, keyed by the tty a bar is drawn on —
+the tty siga walks up its parent processes to find. The token→command binding (the queue of
+`⟦bar⟧` tokens awaiting a command, the last slot touched, the invisible scratch bar) lives in
+a **pane** doc, `pane-<own-tty>.json`, keyed by the process's own tty.
 
-Within a window, each `⟦bar⟧` token is handed one of four slots (a recycling ring) and the
-command that follows binds it, so a finished bar keeps its own value and freezes while the
-next job's bar fills. Jobs still run one at a time — only one bar is live at a moment. A
-fifth bar reuses the oldest slot, so a bar more than four jobs back changes when its slot is
-recycled. A wrapped command with no token of its own drives a scratch slot that nothing
-draws. On Kitty all slots still share one image, so there a finished bar is overwritten by
-the next (Ghostty, which herdr runs on, is the independent-bar backend).
+Each `⟦bar⟧` token is handed one of four window slots (a recycling ring) and the command that
+follows binds it, so a finished bar keeps its own value and freezes while the next job's bar
+fills. Jobs still run one at a time per pane. A fifth bar reuses the oldest slot, so a bar
+more than four jobs back changes when its slot is recycled; allocation skips a slot that is
+still live so a new token never blanks a running bar. A wrapped command with no token drives a
+scratch slot that nothing draws.
+
+Under **Ghostty + herdr the window is one client tty behind every pane** (herdr composites the
+panes into one Ghostty window, and a palette is per window). So the four slots are a
+window-wide pool claimed across panes: each slot's glyph encodes which palette entry it reads,
+and the window doc (updated under an `flock`) hands out distinct slots, so two panes get
+distinct entries instead of overwriting one. The cap is four distinct bars per Ghostty window;
+a fifth across all panes recycles the oldest. Each window slot records the pane that owns it,
+so a died command fails only its own bar. Elsewhere — one Ghostty pane, direct Ghostty, Kitty,
+text — the window tty equals the pane tty and this collapses to one pane. On Kitty all slots
+still share one image, so there a finished bar is overwritten by the next.
 
 ## Claude Code hooks
 
