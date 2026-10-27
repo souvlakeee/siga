@@ -31,8 +31,8 @@ The token works in Ghostty and Kitty with siga set up; elsewhere it shows a stat
 Inside Claude Code, build-like commands (npm/pnpm/bun builds and tests, cargo, go,
 make, docker build, pytest, curl -o, wget, rsync, git clone, ffmpeg, yt-dlp, pip/uv…)
 are wrapped automatically: their output and exit code pass through unchanged. Add
-your own patterns to `~/.config/siga/wrap.txt` (`pipe <regex>` or `pty <regex>`, one per
-line, anchored at the start of a command).
+your own patterns under `[wrap]` in `~/.config/siga/config.toml`, or a repo-local
+`siga.toml` (`pipe = ['<regex>']` / `pty = ['<regex>']`, anchored at the start of a command).
 
 For anything else, pick the matching form:
 

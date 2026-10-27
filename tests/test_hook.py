@@ -55,6 +55,23 @@ class Decide(unittest.TestCase):
         self.assertFalse(hook.backgrounds("make -j8 | grep -E 'error|warn'"))
 
 
+class ProjectConfig(unittest.TestCase):
+    def test_project_pattern_loads(self):
+        import os
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as f:
+            f.write("[wrap]\npipe = ['^frobnicate']\n")
+            path = f.name
+        os.environ["SIGA_PROJECT_CONFIG"] = path
+        try:
+            # a token no default pattern matches — wrapping proves the repo-local siga.toml was read
+            self.assertEqual(hook.decide("frobnicate the gizmo"), "pipe")
+        finally:
+            os.environ.pop("SIGA_PROJECT_CONFIG", None)
+            os.unlink(path)
+
+
 class Wrap(unittest.TestCase):
     def test_filter_moves_after_siga(self):
         out = hook.wrap('make -j8 | grep -E "error|warn"', "pipe")

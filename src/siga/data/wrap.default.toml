@@ -1,0 +1,46 @@
+# Commands the PreToolUse hook wraps with siga.
+#   pipe = run in Claude's own shell, output piped through `siga pipe` (the default)
+#   pty  = run on a pseudo-terminal (`siga run --pty`): for tools that only draw a bar there
+# Each entry is a Python regex, searched from where the command starts (after env
+# assignments and sudo/time/nice), so anchor it with ^. Add your own in
+# ~/.config/siga/config.toml, or a repo-local siga.toml, with the same [wrap] shape;
+# they are appended to these. Use TOML literal strings ('…') so backslashes stay literal.
+
+[wrap]
+pipe = [
+  # JavaScript
+  '^(npm|pnpm|yarn|bun)\s+(run\s+)?(build|test|lint|typecheck|e2e|render|export|ci)\b',
+  '^npx\s+(tsc|vite\s+build|next\s+build|remotion\s+render|playwright\s+test|jest|vitest)\b',
+  '^(vite|next)\s+build\b',
+  '^(npx\s+)?remotion\s+render\b',
+  # Rust, Go, Swift, JVM, C
+  '^go\s+(build|test|install)\b',
+  '^make\b',
+  '^xcodebuild\b',
+  '^swift\s+build\b',
+  '^(\./)?gradlew?\s',
+  # Python
+  '^pytest\b',
+  '^python3?\s+-m\s+pytest\b',
+  # containers
+  '^docker\s+(build|buildx\s+build|compose\s+(build|up\s+--build))\b',
+  '^docker\s+(pull|push)\b',
+  # transfers and media
+  '^curl\b(?!.*(-o|--output)\s*/dev/null).*\s(-o|-O|--output|--remote-name)\b',
+  '^wget\b',
+  '^rsync\b',
+  '^scp\b',
+  '^git\s+(clone|fetch|pull)\b',
+  '^yt-dlp\b',
+  '^pv\b',
+  '^ffmpeg\b',
+  # system
+  '^mise\s+run\s+(build|test)\b',
+]
+pty = [
+  '^(npm|pnpm|yarn|bun)\s+(install|i|add)\b',
+  '^cargo\s+(build|test|check|clippy|install|run)\b',
+  '^(pip3?|uv\s+pip)\s+install\b',
+  '^uv\s+(sync|add)\b',
+  '^brew\s+(install|upgrade|reinstall)\b',
+]

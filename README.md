@@ -36,7 +36,7 @@ In Claude Code 2.1.275+:
 No restart needed: `/reload-plugins` loads siga's hooks into the running session.
 
 `/siga:setup` lists its changes (a font, a shader, a marked Ghostty config block, all
-backed up) and asks first. Kitty needs nothing. Python 3.9+, standard library only.
+backed up) and asks first. Kitty needs nothing. Python 3.11+, standard library only.
 
 ## Where it works
 
@@ -57,7 +57,8 @@ the table? [Open an issue](https://github.com/souvlakeee/siga/issues).
 
 Build-like commands (npm, cargo, go, make, docker build, pytest, pip, uv, curl -o, wget,
 rsync, git clone, ffmpeg, yt-dlp, …) are wrapped automatically; output and exit codes pass
-through unchanged. Add patterns in `~/.config/siga/wrap.txt`. For anything else:
+through unchanged. Add patterns under `[wrap]` in `~/.config/siga/config.toml`, or in a
+repo-local `siga.toml` committed with the project. For anything else:
 
 | Your command… | Use |
 |---|---|

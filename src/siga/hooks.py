@@ -1,8 +1,9 @@
 """Claude Code hooks for siga, one entry point: `siga hook <event>` reads the event on stdin.
 
 pretooluse       wrap build-like Bash commands so siga tracks their output. Patterns
-                 (data/wrap.default.txt, plus ~/.config/siga/wrap.txt) match where a
-                 command starts: the line start or after ; && || | ( $( `, past env
+                 (data/wrap.default.toml, ~/.config/siga/config.toml, and a repo-local
+                 siga.toml, all under [wrap]) match where a command starts: the line
+                 start or after ; && || | ( $( `, past env
                  assignments and prefixes like sudo or time. "pipe" keeps the command in
                  Claude's own shell and pipes it through `siga pipe`; "pty" runs it on a
                  pseudo-terminal via `siga run --pty`. Either way the exit code is kept.
@@ -23,6 +24,7 @@ import shlex
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 from siga import core
@@ -42,21 +44,44 @@ RULE = (
 )
 
 
+def project_config():
+    """A repo's own siga.toml, so wrap patterns live with the code they describe.
+    `$SIGA_PROJECT_CONFIG` names it outright; otherwise it is the nearest siga.toml
+    walking up from the working directory."""
+    env = os.environ.get("SIGA_PROJECT_CONFIG")
+    if env:
+        return Path(env)
+    try:
+        here = Path.cwd()
+    except OSError:
+        return None
+    for d in (here, *here.parents):
+        f = d / "siga.toml"
+        if f.is_file():
+            return f
+    return None
+
+
 def patterns():
     rules = []
-    for f in (core.DATA / "wrap.default.txt", Path.home() / ".config" / "siga" / "wrap.txt"):
+    files = [core.DATA / "wrap.default.toml", Path.home() / ".config" / "siga" / "config.toml"]
+    proj = project_config()
+    if proj:
+        files.append(proj)
+    for f in files:
         try:
-            lines = f.read_text().splitlines()
-        except OSError:
-            continue
-        for line in lines:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            mode, _, rx = line.partition(" ")
-            if mode not in ("pipe", "pty"):
-                mode, rx = "pipe", line
-            rules.append((mode, re.compile(rx.strip())))
+            conf = tomllib.loads(f.read_text())
+        except (OSError, tomllib.TOMLDecodeError):
+            continue  # a missing or malformed config must never break wrapping
+        wrap = conf.get("wrap", {})
+        for mode in ("pipe", "pty"):
+            for rx in wrap.get(mode, []):
+                if not isinstance(rx, str):
+                    continue
+                try:
+                    rules.append((mode, re.compile(rx)))
+                except re.error:
+                    continue
     return rules
 
 
