@@ -139,8 +139,35 @@ def wrap(command, mode):
     return "set -o pipefail; { %s\n} 2>&1 | siga pipe -k %s%s; siga end $?" % (body, key, tail)
 
 
+def backgrounds(command):
+    """True when a top-level `&` runs part of the command in the background.
+
+    The launcher then returns before the detached work ends, so a wrapping
+    `siga pipe`/`siga run` paints `done` the moment the launcher exits while the
+    real job is still running (issue #1). A backgrounding `&` is a control
+    operator, so it is told apart from `&&` and from redirections (`>&`, `&>`,
+    `2>&1`), whose `&` is adjacent to `<`, `>` or another `&`. A job that
+    detaches its OWN work (an inner `nohup`/daemon in a script we just invoke)
+    cannot be seen from the command text — it drives the bar itself with
+    `siga set`/`siga done`, the pattern the README documents.
+    """
+    _, _, seps = scan(command)
+    for i in seps:
+        if command[i] != "&":
+            continue
+        prev = command[i - 1] if i > 0 else ""
+        nxt = command[i + 1] if i + 1 < len(command) else ""
+        # tuple membership, not `in "<>&"`: an empty string (at a boundary) is a
+        # substring of every string, so `"" in "<>&"` is True and would wrongly
+        # treat a trailing `&` as a redirection.
+        if prev in ("<", ">", "&") or nxt in ("<", ">", "&"):
+            continue
+        return True
+    return False
+
+
 def decide(command):
-    if not command or SKIP.search(command) or command.rstrip().endswith("&"):
+    if not command or SKIP.search(command) or backgrounds(command):
         return None
     heads = segment_heads(command)
     modes = [mode for mode, rx in patterns() if any(rx.search(h) for h in heads)]

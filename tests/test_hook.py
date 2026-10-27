@@ -32,6 +32,8 @@ class Decide(unittest.TestCase):
             "curl -s https://api.example.com/health",
             "grep -rn cargo src/",
             "npm run dev &",
+            "npm run build & echo started",
+            "nohup npm run build & echo started",
             "cat <<EOF | make\nx\nEOF",
             "siga status",
             "curl -s -o /dev/null -w '%{http_code}' https://example.com",
@@ -39,6 +41,18 @@ class Decide(unittest.TestCase):
             "mise run job:wait -- x.log",
         ]:
             self.assertIsNone(hook.decide(cmd), cmd)
+
+    def test_background_detection(self):
+        # a top-level `&` backgrounds the job (issue #1), so it is not wrapped
+        self.assertTrue(hook.backgrounds("npm run build & echo x"))
+        self.assertTrue(hook.backgrounds("nohup npm run build > log 2>&1 &"))
+        self.assertTrue(hook.backgrounds("npm run build &"))
+        # `&&`, redirections and quoted `&` are NOT backgrounding
+        self.assertFalse(hook.backgrounds("cd app && npm run build 2>&1 | tail -20"))
+        self.assertFalse(hook.backgrounds("npm run build > out 2>&1"))
+        self.assertFalse(hook.backgrounds("npm run build &> out"))
+        self.assertFalse(hook.backgrounds("echo 'a & b'"))
+        self.assertFalse(hook.backgrounds("make -j8 | grep -E 'error|warn'"))
 
 
 class Wrap(unittest.TestCase):
