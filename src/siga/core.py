@@ -474,7 +474,12 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
         elif prog.trusted:
             val, state = prog.value, prog.state or "run"
         elif eta:
-            val, state = min(0.99, (now - t0) / eta), "run"
+            # Hold a time-estimated bar at 90%, not 99%: a near-full bar reads as
+            # "done" while the job is still running. The last tenth fills only on the
+            # real exit (push below / `siga end`), so overrunning the estimate looks
+            # like "almost there, still working", not finished. A trusted N/M count
+            # is exact and uncapped — this ceiling is for the guess only.
+            val, state = min(0.90, (now - t0) / eta), "run"
         else:
             continue
         if shim_active():
