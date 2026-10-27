@@ -2,6 +2,8 @@
 
 # siga
 
+[![PyPI](https://img.shields.io/pypi/v/siga)](https://pypi.org/project/siga/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+
 **Progress bars that keep filling after they are printed.**
 
 *Σιγά-σιγά* (siga-siga) is how Cyprus says "slowly, slowly", and how it lives. Nobody rushes the coffee, the afternoon or the man in the shade. Things get done in their own time, and that's fine — as long as you can see them getting done.
@@ -24,6 +26,14 @@ In Claude Code 2.1.275+:
 ```
 
 `/siga:setup` installs a font and a Ghostty shader (shown first, backed up). Kitty needs nothing. Python 3.11+, standard library only.
+
+Or as a standalone CLI in any terminal:
+
+```
+pipx install siga
+siga setup --apply
+siga run -- <your long command>
+```
 
 ## How it works
 
@@ -107,7 +117,7 @@ For one-off commands:
 
 Works in Ghostty 1.3+ and Kitty 0.49+, including through [herdr](https://herdr.dev). Tested on macOS; Linux should work, Windows is TBD. Full mechanism: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
 
-Without Claude Code: `git clone https://github.com/souvlakeee/siga && cd siga`, then `bin/siga setup --apply` and `bin/siga run -- cargo build`.
+Without Claude Code: `pipx install siga`, then `siga setup --apply` and `siga run -- <cmd>` (or clone the repo and use `bin/siga`).
 
 ## Limitations
 
