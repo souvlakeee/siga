@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 (2026-10-27)
+
+- Independent bars across herdr panes (issue #4). Under Ghostty + herdr the panes of one
+  window share a single palette, so every pane's bar used to show the last value any pane
+  pushed. The four slots are now a window-wide pool claimed across panes (each bar's glyph
+  already encodes which palette entry it reads), so two panes get distinct entries instead of
+  overwriting one. Cap: four distinct bars per Ghostty window; a fifth live across all panes
+  recycles the oldest. Each slot records its owning pane, so a failed command reddens only its
+  own bar. Single-pane Ghostty, direct Ghostty, Kitty and text are unchanged.
+- State is split into a per-window doc (the shared bars + cursor, `win-<tty>.json`, written
+  under an flock) and a per-pane doc (token binding + scratch, `pane-<tty>.json`), migrated
+  from the old `state-<tty>.json`. Pure Python — effective on the next plugin load, no setup
+  step and no Ghostty reload.
+
 ## 0.3.0 (2026-10-27)
 
 - Bars are now independent. Each `⟦bar⟧` gets its own slot (a ring of four), so a finished

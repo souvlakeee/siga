@@ -111,7 +111,7 @@ Without Claude Code: `git clone https://github.com/souvlakeee/siga && cd siga`, 
 
 ## Limitations
 
-- Up to four independent bars per window: each `⟦bar⟧` keeps its own state, so a finished bar freezes while the next fills. Jobs still run one at a time; a fifth bar recycles the oldest slot. On Kitty all bars share one image.
+- Up to four independent bars per window: each `⟦bar⟧` keeps its own state, so a finished bar freezes while the next fills. Jobs still run one at a time; a fifth bar recycles the oldest slot. Under Ghostty + herdr the four are shared across the panes of one window (herdr composites them into one Ghostty palette), so >4 bars live at once across panes recycle. On Kitty all bars share one image.
 - `siga off` / `siga on` pause the hooks; `siga setup --remove` uninstalls.
 
 ## Thanks
