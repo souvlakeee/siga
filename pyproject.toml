@@ -18,6 +18,8 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/souvlakeee/siga"
+Repository = "https://github.com/souvlakeee/siga"
+Issues = "https://github.com/souvlakeee/siga/issues"
 
 [project.scripts]
 siga = "siga.cli:entry"
@@ -41,6 +43,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/siga"]
+
+[tool.hatch.build.targets.sdist]
+# Strict allowlist: the default sweep pulls in gitignored scratch like .demo/ (~1 GB).
+only-include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
