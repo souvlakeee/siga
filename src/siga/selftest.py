@@ -64,7 +64,9 @@ def missing(needs, allow_network):
 
 
 def judge(records, expect):
-    values = [r["value"] for r in records if r["state"] == "run"]
+    # every running state counts: an exact count (run), a time estimate (est), an estimate
+    # that ran out (held) or a step flash; busy carries no value and is left out
+    values = [r["value"] for r in records if r["state"] in ("run", "est", "held", "step")]
     distinct = len(set(values))
     final = records[-1]["state"] if records else "none"
     top = max(values) if values else 0.0

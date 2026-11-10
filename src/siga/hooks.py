@@ -59,18 +59,36 @@ def project_config():
     return None
 
 
-def patterns():
+def configs():
+    """The parsed config files in merge order: bundled defaults, the user's, the repo's."""
     import tomllib
-    rules = []
     files = [core.DATA / "wrap.default.toml", Path.home() / ".config" / "siga" / "config.toml"]
     proj = project_config()
     if proj:
         files.append(proj)
+    out = []
     for f in files:
         try:
-            conf = tomllib.loads(f.read_text())
+            out.append(tomllib.loads(f.read_text()))
         except (OSError, tomllib.TOMLDecodeError):
             continue  # a missing or malformed config must never break wrapping
+    return out
+
+
+def mise_auto_wrap():
+    """Seconds: a `mise run X` whose mise median is at least this long is wrapped with no
+    pattern. The last config that sets `[mise] auto_wrap` wins; 0 turns it off."""
+    seconds = 0
+    for conf in configs():
+        value = conf.get("mise", {}).get("auto_wrap")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            seconds = value
+    return seconds
+
+
+def patterns():
+    rules = []
+    for conf in configs():
         wrap = conf.get("wrap", {})
         for mode in ("pipe", "pty"):
             for rx in wrap.get(mode, []):
@@ -203,8 +221,23 @@ def decide(command):
     heads = segment_heads(command)
     modes = [mode for mode, rx in patterns() if any(rx.search(h) for h in heads)]
     if not modes:
-        return None
+        return "pipe" if long_mise_task(command) else None
     return "pty" if "pty" in modes else "pipe"
+
+
+def long_mise_task(command):
+    """A `mise run X` that mise's own history says takes at least `[mise] auto_wrap`
+    seconds: wrapped with no pattern, so a mise user needs no config for long tasks."""
+    if "mise" not in command:
+        return False  # the common case pays nothing: no config read, no subprocess
+    task, cwd = core.mise_run(command)
+    if not task:
+        return False
+    threshold = mise_auto_wrap()
+    if threshold <= 0:
+        return False
+    median = core.mise_history_cached(cwd).get(task)
+    return median is not None and median >= threshold
 
 
 def pretooluse(event):

@@ -65,19 +65,28 @@ Build-like commands (npm, cargo, go, make, docker, pytest, curl -o, rsync, git c
 
 ### Best with mise
 
-If your project runs its jobs as [mise](https://mise.jdx.dev) tasks, siga needs no memory of its own. mise 2026.11.3+ records how long every task run took, and siga times a wrapped `mise run <task>` from that median:
+If your project runs its jobs as [mise](https://mise.jdx.dev) tasks, siga needs no config and no memory of its own. mise 2026.11.3+ records how long every task run took, and **any `mise run <task>` whose median is 20 s or more gets a bar automatically**, timed from that median:
+
+```
+mise run deploy     # a bar, no siga.toml; it fills against the median of your real deploys
+```
+
+Change the threshold, or turn it off with `0`, in `~/.config/siga/config.toml` or a repo-local `siga.toml`:
 
 ```toml
-# siga.toml: every long task of the project, one line
-[wrap]
-pipe = ['^mise\s+run\s+(deploy|build|test|render)\b']
-```
-
-```
-mise run deploy     # the bar fills against the median of your real deploys
+[mise]
+auto_wrap = 20   # seconds
 ```
 
 A task that runs other tasks moves **phase by phase**. mise prints a `[task] $ cmd` header as each step starts, and siga places the bar by the medians of the steps already done, so in a 20 s deploy whose build starts after a 7 s sync, the bar stands at 35% the moment the build begins, whatever the clock says. A slow step holds the bar at its own boundary instead of sliding toward 100%. siga learns the steps from the task's last successful run.
+
+The bar's colour says how siga knows the value:
+
+- **bright cyan-blue**: an exact count the job printed (`12/40`, `45%`, ffmpeg `time=`);
+- **calm blue**: a time estimate, from mise's median or siga's own record;
+- **amber, breathing**: the estimate ran out and the job is still working;
+- **a short white flash**: the next step of a mise task has begun;
+- **green** when it ends well, **red** when it fails.
 
 That history belongs to the project, not to one terminal: every pane and session that ran the task fed it, so a task's first run in a new terminal already has a real bar. A task mise has never run falls back to siga's own record, then to a busy sweep. Check what siga will use with `mise tasks history --summary`.
 

@@ -33,7 +33,11 @@ your build ──► siga run / pipe / hook ──► parser ──► state fil
 - **The value channel.** Each slot's value goes in its own palette entry (252–255) with
   OSC 4; the shader reads the one matching the pixel's slot, so a finished bar keeps its
   own entry and freezes while the next bar's entry moves. Red and green carry 10 bits of
-  progress, blue carries the state (clear, run, busy, done, fail). Every encoded color
+  progress, blue carries the state (clear, run, busy, done, fail, and three running states
+  that say where the value comes from: est for a time estimate, held when that estimate
+  ran out, step for a half-second flash at a new mise step). The shader carries a
+  `siga-shader: 2` line; siga sends codes 5-7 only to a shader that has it and sends
+  `run` to an older one, which the session-start hook then replaces. Every encoded color
   stays near the grayscale-ramp entry it overwrites, so those colors still look right. The
   cursor color (OSC 12) would be the obvious channel, but Ghostty only refreshes shader
   uniforms when the screen is marked dirty, and OSC 12 doesn't mark it. OSC 4 does.
@@ -101,6 +105,11 @@ is timed from mise's own run history first (`mise tasks history --summary --json
 task's `median_ms`): the hook passes the task name as `--mise <task>`, and `siga run`
 reads it from the command. No mise, an older mise or a task with no runs falls back to
 siga's record.
+
+A `mise run <task>` that no `[wrap]` pattern names is still wrapped when mise's median for
+the task is at least `[mise] auto_wrap` seconds (20 by default, 0 turns it off). The hook
+only looks when the command contains `mise`, and keeps each project's medians in
+`~/.cache/siga/mise-<hash>.json` for 5 minutes, so the check is a file read.
 
 A mise task that runs other tasks moves phase by phase. siga remembers the order of the
 `[name] $ cmd` headers from the task's last successful run (per project, in

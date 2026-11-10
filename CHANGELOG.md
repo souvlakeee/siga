@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0 (2026-11-10)
+
+- **Zero-config bars for mise.** Any `mise run <task>` whose median in mise's own history
+  is 20 s or more gets a bar with no `[wrap]` pattern. Set `[mise] auto_wrap = <seconds>`
+  in your config or a repo-local `siga.toml`; `0` turns it off. The hook only looks when the
+  command contains `mise`, and caches each project's medians for 5 minutes.
+- **The bar's colour says how siga knows the value.** Bright cyan-blue is an exact count
+  the job printed. A calmer blue is a time estimate (mise's median, siga's record, a step's
+  elapsed time). Amber, breathing slowly, means the estimate ran out and the job is still
+  working (a step at its cap, or the whole bar at its 90% hold). A short white flash marks
+  the start of each step of a mise task. Ghostty and Kitty both draw them.
+- They use the three free state codes (5-7) of the existing colour encoding, so nothing
+  else changes. The shader now carries a `siga-shader: 2` line; until the session-start
+  hook has installed it, siga sends an older shader the plain running colour.
+
 ## 0.6.1 (2026-11-10)
 
 - A piped job's bar now always finishes. `siga end` could not tell which bar its

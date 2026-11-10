@@ -44,3 +44,8 @@ pty = [
   '^uv\s+(sync|add)\b',
   '^brew\s+(install|upgrade|reinstall)\b',
 ]
+
+# A `mise run X` gets a bar with no pattern once mise's own history (mise 2026.11.3+) says
+# the task takes at least this many seconds. Set it in your config or siga.toml; 0 is off.
+[mise]
+auto_wrap = 20
