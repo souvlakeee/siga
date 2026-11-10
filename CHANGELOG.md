@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 (2026-11-10)
+
+- The mise timing now works the way agents write commands. 0.5.0 only recognised a
+  command that started with `mise run`, so `cd /repo && mise run deploy` fell back to the
+  busy sweep. siga now finds the first `mise run <task>` after any `&&`, `;` or `||`, and
+  reads mise's history in the directory of the last `cd` before it, because mise keeps a
+  separate history per project. The hook passes it as `--mise-cwd <dir>`.
+
 ## 0.5.0 (2026-11-10)
 
 - A `mise run <task>` is timed from mise's own run history. mise 2026.11.3+ records the

@@ -96,6 +96,11 @@ class Wrap(unittest.TestCase):
         self.assertIn(" --mise test:perf:inp -- sh -c", hook.wrap("mise run test:perf:inp", "pty"))
         self.assertNotIn("--mise", hook.wrap("make -j8", "pipe"))
 
+    def test_a_mise_run_after_cd_reads_history_there(self):
+        out = hook.wrap("cd /Users/me/repo && mise run deploy 2>&1 | tail -1", "pipe")
+        self.assertIn(" --mise deploy --mise-cwd /Users/me/repo | tail -1; siga end $?", out)
+        self.assertIn("--mise-cwd '/a b'", hook.wrap("cd '/a b' && mise run x", "pipe"))
+
     def test_git_progress(self):
         self.assertIn("git clone --progress https://x", hook.wrap("git clone https://x", "pipe"))
         self.assertIn("git pull --progress", hook.wrap("git pull --progress", "pipe").replace("--progress --progress", "X"))

@@ -333,10 +333,27 @@ class MiseHistory(unittest.TestCase):
             ("mise run --output summary lint:all", "lint:all"),
             ("mise r build", "build"),
             ("make", None),
-            ("cd video && mise run render", None),  # other work first: not a plain mise run
+            ("cd video && mise run render", "render"),  # how agents write it: cd first
+            ("mise tasks history deploy; mise run deploy 2>&1 | tail -3", "deploy"),
+            ("echo mise run deploy", None),  # an argument, not a command
             ("mise install", None),
         ]:
             self.assertEqual(core.mise_task(cmd), task, cmd)
+
+    def test_the_cd_before_the_task_is_where_history_is_read(self):
+        for cmd, cwd in [
+            ("mise run deploy", None),
+            ("cd /repo && mise run deploy", "/repo"),
+            ("cd /a && make; cd '/b c' && mise run deploy", "/b c"),
+            ("cd ~/proj && mise run deploy", str(Path("~/proj").expanduser())),
+            ("mise run deploy && cd /later", None),  # a cd after the task does not apply
+        ]:
+            self.assertEqual(core.mise_run(cmd), ("deploy", cwd), cmd)
+
+    def test_history_is_read_in_that_directory(self):
+        with self.history('[{"task":"deploy","median_ms":2000}]') as run:
+            core.mise_eta("deploy", "/repo")
+        self.assertEqual(run.call_args.kwargs["cwd"], "/repo")
 
     def test_median_comes_back_in_seconds(self):
         with self.history('[{"task":"deploy","runs":4,"median_ms":41500},{"task":"build","median_ms":900}]'):

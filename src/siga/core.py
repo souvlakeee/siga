@@ -705,31 +705,51 @@ def history_add(key, seconds):
     HISTORY_FILE.write_text(json.dumps(data))
 
 
-def mise_task(command):
-    """The task name when `command` is `mise run <task>` (or `mise r`), else None.
+# flags of `mise run` that take a separate value; a wrong guess here only costs the
+# mise median, since an unknown task name finds no history and siga's record is used
+_MISE_VALUED = r"(?:-o|--output|-j|--jobs|-C|--cd|-t|--tool|--timeout|--lock-timeout|-E|--env|--tag)"
+_MISE_RUN = (r"(?:^|&&|;|\|\||\n)\s*(?:[A-Za-z_]\w*=\S*\s+)*mise\s+(?:run|r)\s+(?:(?:%s\s+\S+|-\S+)\s+)*"
+             r"([A-Za-z0-9_][\w:.-]*)" % _MISE_VALUED)
 
-    Leading `VAR=value` words and flags before the task are skipped; a command that
-    chains other work first (`cd x && mise run y`) is not a mise run for timing."""
+
+def mise_run(command):
+    """(task, directory) for the first `mise run <task>` (or `mise r`) in `command`.
+
+    The task may follow other segments, because agents almost always write
+    `cd /repo && mise run deploy`. directory is the last `cd <dir>` before it
+    (None when there is none), since mise keeps a separate history per project.
+    Returns (None, None) when the command runs no mise task."""
     import re
-    # flags of `mise run` that take a separate value; a wrong guess here only costs the
-    # mise median, since an unknown task name finds no history and siga's record is used
-    valued = r"(?:-o|--output|-j|--jobs|-C|--cd|-t|--tool|--timeout|--lock-timeout|-E|--env|--tag)"
-    m = re.match(r"\s*(?:[A-Za-z_]\w*=\S*\s+)*mise\s+(?:run|r)\s+(?:(?:%s\s+\S+|-\S+)\s+)*([A-Za-z0-9_][\w:.-]*)"
-                 % valued, command or "")
-    return m.group(1) if m else None
+    import shlex
+    command = command or ""
+    m = re.search(_MISE_RUN, command)
+    if not m:
+        return None, None
+    cds = re.findall(r"(?:^|&&|;)\s*cd\s+((?:'[^']*'|\"[^\"]*\"|\S)+)", command[:m.start(1)])
+    try:
+        cwd = os.path.expanduser(shlex.split(cds[-1])[0]) if cds else None
+    except (ValueError, IndexError):
+        cwd = None
+    return m.group(1), cwd
 
 
-def mise_eta(task):
+def mise_task(command):
+    """The task name of the first `mise run <task>` in `command`, else None."""
+    return mise_run(command)[0]
+
+
+def mise_eta(task, cwd=None):
     """Median duration in seconds of `task` from mise's own run history, or None.
 
     mise (2026.11.3+) records every task run, across terminals and sessions, and
-    its median ignores nothing siga would have to guess at. Any failure (no mise,
-    an older mise, no runs yet, a slow answer) returns None and the caller falls
-    back to siga's own record."""
+    its median ignores nothing siga would have to guess at. The history is per
+    project, so it is read from `cwd` (the command's `cd` target) when given. Any
+    failure (no mise, an older mise, no runs yet, a slow answer) returns None and
+    the caller falls back to siga's own record."""
     import subprocess
     try:
         out = subprocess.run(["mise", "tasks", "history", "--summary", "--json"], capture_output=True,
-                             text=True, timeout=2, stdin=subprocess.DEVNULL).stdout
+                             text=True, timeout=2, stdin=subprocess.DEVNULL, cwd=cwd or None).stdout
         ms = next((r.get("median_ms") for r in json.loads(out) if r.get("task") == task), None)
     except (OSError, ValueError, TypeError, AttributeError, subprocess.SubprocessError):
         return None
@@ -742,7 +762,7 @@ def shim_active(slot=None, window=2.0):
 
 
 def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None, min_interval=0.25, slot=None,
-          mise=None):
+          mise=None, mise_cwd=None):
     """Copy a byte stream through while pushing its progress to the bars.
 
     read_chunk(timeout) returns bytes, b"" at EOF, or None when nothing arrived.
@@ -750,7 +770,8 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
     step/steps: a regex counting a custom script's steps, and their total (learned
     from the previous run of the same command when not given).
     mise: a mise task name; its median from mise's history times the bar ahead of
-    siga's own record of this command.
+    siga's own record of this command. mise_cwd: the project directory to read
+    that history in.
     """
     from siga.parse import Cleaner, Progress, Stream
     if step and not steps and key:
@@ -758,7 +779,7 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
     prog = Progress(step=step, steps=int(steps) if steps else None)
     stream = Stream(prog)
     cleaner = Cleaner() if clean else None
-    eta = (mise_eta(mise) if mise else None) or (history_get(key) if key else None)
+    eta = (mise_eta(mise, mise_cwd) if mise else None) or (history_get(key) if key else None)
     tee =open(os.environ["SIGA_TEE"], "ab") if os.environ.get("SIGA_TEE") else None
     t0 = time.time()
     last_push, last_val = 0.0, None
