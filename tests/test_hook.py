@@ -89,6 +89,13 @@ class Wrap(unittest.TestCase):
         self.assertIn("siga run --pty -k", out)
         self.assertIn("-- sh -c 'cargo build' | tail -5", out)
 
+    def test_a_mise_run_names_its_task(self):
+        out = hook.wrap("mise run deploy 2>&1 | tail -5", "pipe")
+        self.assertIn("| siga pipe -k ", out)
+        self.assertIn(" --mise deploy | tail -5; siga end $?", out)
+        self.assertIn(" --mise test:perf:inp -- sh -c", hook.wrap("mise run test:perf:inp", "pty"))
+        self.assertNotIn("--mise", hook.wrap("make -j8", "pipe"))
+
     def test_git_progress(self):
         self.assertIn("git clone --progress https://x", hook.wrap("git clone https://x", "pipe"))
         self.assertIn("git pull --progress", hook.wrap("git pull --progress", "pipe").replace("--progress --progress", "X"))

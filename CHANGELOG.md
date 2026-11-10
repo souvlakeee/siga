@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 (2026-11-10)
+
+- A `mise run <task>` is timed from mise's own run history. mise 2026.11.3+ records the
+  duration of every task run, so siga reads the task's median
+  (`mise tasks history --summary --json`) and fills the bar against it, ahead of its own
+  last-5-runs record. The history is per project and shared by every terminal and session,
+  so a task's first run in a new pane already has a real bar. The hook passes the task as
+  `--mise <task>` to `siga pipe` / `siga run`; `siga run -- mise run <task>` finds it in the
+  command. No mise, an older mise, or a task with no runs falls back to siga's record, then
+  to the busy sweep. The lookup takes about 16 ms and is capped at 2 s.
+- Docs: a "Best with mise" section in the README; HOW_IT_WORKS said a timed bar stops at
+  99%, the code holds it at 90%.
+
 ## 0.4.0 (2026-10-27)
 
 - Independent bars across herdr panes (issue #4). Under Ghostty + herdr the panes of one

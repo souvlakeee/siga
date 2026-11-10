@@ -63,6 +63,22 @@ Build-like commands (npm, cargo, go, make, docker, pytest, curl -o, rsync, git c
 
 **A command that prints no progress at all still gets a bar:** siga remembers how long it took (the median of its last 5 runs) and fills by that, holding at 90% until it exits — so the second run of your build or deploy has a real bar.
 
+### Best with mise
+
+If your project runs its jobs as [mise](https://mise.jdx.dev) tasks, siga needs no memory of its own. mise 2026.11.3+ records how long every task run took, and siga times a wrapped `mise run <task>` from that median:
+
+```toml
+# siga.toml: every long task of the project, one line
+[wrap]
+pipe = ['^mise\s+run\s+(deploy|build|test|render)\b']
+```
+
+```
+mise run deploy     # the bar fills against the median of your real deploys
+```
+
+That history belongs to the project, not to one terminal: every pane and session that ran the task fed it, so a task's first run in a new terminal already has a real bar. A task mise has never run falls back to siga's own record, then to a busy sweep. Check what siga will use with `mise tasks history --summary`.
+
 For one-off commands:
 
 | Your command… | Use |
@@ -71,6 +87,7 @@ For one-off commands:
 | draws its bar only on a terminal | `siga run --pty -- cargo build` |
 | uses tqdm, rich, click, cli-progress | `siga run --shim -- python train.py` |
 | prints nothing useful | `siga run -- make` (learns the duration) |
+| is a mise task | `siga run -- mise run deploy` (timed from mise's history) |
 | is your own script | `siga set 3/10`, then `siga done` / `siga fail` |
 | must stay in a pipe | `tool 2>&1 \| siga pipe; siga end $?` |
 

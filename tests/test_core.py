@@ -319,5 +319,72 @@ class Targets(unittest.TestCase):
             self.assertEqual(core.target_ttys(KITTY), ["/dev/ttys009"])
 
 
+class MiseHistory(unittest.TestCase):
+    """A `mise run X` is timed from mise's run history, ahead of siga's own record."""
+
+    def history(self, payload):
+        return mock.patch("subprocess.run", return_value=mock.Mock(stdout=payload))
+
+    def test_task_name_from_a_command(self):
+        for cmd, task in [
+            ("mise run deploy", "deploy"),
+            ("mise run test:acceptance:hurl -- tests/a.hurl", "test:acceptance:hurl"),
+            ("REACT_COMPILER=1 mise run deploy", "deploy"),
+            ("mise run --output summary lint:all", "lint:all"),
+            ("mise r build", "build"),
+            ("make", None),
+            ("cd video && mise run render", None),  # other work first: not a plain mise run
+            ("mise install", None),
+        ]:
+            self.assertEqual(core.mise_task(cmd), task, cmd)
+
+    def test_median_comes_back_in_seconds(self):
+        with self.history('[{"task":"deploy","runs":4,"median_ms":41500},{"task":"build","median_ms":900}]'):
+            self.assertEqual(core.mise_eta("deploy"), 41.5)
+
+    def test_no_usable_history_is_none(self):
+        for payload in ("", "not json", "[]", '[{"task":"deploy","median_ms":null}]',
+                        '[{"task":"other","median_ms":5000}]', '{"task":"deploy"}'):
+            with self.history(payload):
+                self.assertIsNone(core.mise_eta("deploy"), payload)
+
+    def test_a_missing_mise_is_none(self):
+        with mock.patch("subprocess.run", side_effect=FileNotFoundError):
+            self.assertIsNone(core.mise_eta("deploy"))
+
+    def track(self, mise, mise_eta, own):
+        """Run track() over a silent 0.3 s stream and return the values it pushed."""
+        import time
+        chunks = iter([None, None, None, b""])
+        pushed = []
+
+        def read(timeout):
+            time.sleep(0.1)
+            return next(chunks)
+
+        with mock.patch.object(core, "mise_eta", return_value=mise_eta) as asked, \
+             mock.patch.object(core, "history_get", return_value=own), \
+             mock.patch.object(core, "history_add"), \
+             mock.patch.object(core, "shim_active", return_value=False), \
+             mock.patch.object(core, "push", side_effect=lambda v, s, slot=None: pushed.append((v, s))):
+            core.track(read, lambda b: None, key="k", min_interval=0.0, mise=mise)
+        return pushed, asked
+
+    def test_mise_median_times_the_bar_ahead_of_siga_record(self):
+        pushed, _ = self.track("deploy", mise_eta=1.0, own=100.0)
+        # 0.3 s against mise's 1 s is ~30%; against siga's own 100 s it would be under 1%
+        self.assertGreater(max(v for v, _ in pushed), 0.15)
+
+    def test_no_mise_history_falls_back_to_siga_record(self):
+        pushed, _ = self.track("deploy", mise_eta=None, own=1.0)
+        self.assertEqual(pushed[0], (0.0, "run"))
+        self.assertGreater(max(v for v, _ in pushed), 0.15)
+
+    def test_a_plain_command_never_asks_mise(self):
+        pushed, asked = self.track(None, mise_eta=1.0, own=None)
+        asked.assert_not_called()
+        self.assertEqual(pushed, [(0.0, "busy")])
+
+
 if __name__ == "__main__":
     unittest.main()

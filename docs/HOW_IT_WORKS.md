@@ -96,7 +96,11 @@ pseudo-terminal (for tools that only draw a bar on a terminal) and the cleaned l
 what you see.
 
 When nothing parses, the bar shows a busy sweep. siga remembers how long each command took,
-so the next run fills by time and stops at 99% until the command exits. `--step REGEX`
+so the next run fills by time and stops at 90% until the command exits. A `mise run <task>`
+is timed from mise's own run history first (`mise tasks history --summary --json`, the
+task's `median_ms`): the hook passes the task name as `--mise <task>`, and `siga run`
+reads it from the command. No mise, an older mise or a task with no runs falls back to
+siga's record. `--step REGEX`
 counts named steps instead, and remembers how many there were.
 
 `--shim` reads values from inside the program: a Python `sitecustomize` patches tqdm, rich
