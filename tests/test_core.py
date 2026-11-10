@@ -379,7 +379,9 @@ class MiseHistory(unittest.TestCase):
             time.sleep(0.1)
             return next(chunks)
 
-        with mock.patch.object(core, "mise_eta", return_value=mise_eta) as asked, \
+        medians = {mise: mise_eta} if mise and mise_eta else {}
+        with mock.patch.object(core, "mise_history", return_value=medians) as asked, \
+             mock.patch.object(core, "phase_plan_get", return_value=[]), \
              mock.patch.object(core, "history_get", return_value=own), \
              mock.patch.object(core, "history_add"), \
              mock.patch.object(core, "shim_active", return_value=False), \
@@ -401,6 +403,107 @@ class MiseHistory(unittest.TestCase):
         pushed, asked = self.track(None, mise_eta=1.0, own=None)
         asked.assert_not_called()
         self.assertEqual(pushed, [(0.0, "busy")])
+
+
+class MisePhases(unittest.TestCase):
+    """track() moves a multi-step mise task phase by phase, and keeps a plan only from a run that passed."""
+
+    PLAN = [["deploy:sync", 7.4], ["deploy:build", 8.8], ["deploy:verify", 3.6]]
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        cache = Path(self.tmp.name)
+        self.patches = [
+            mock.patch.object(core, "CACHE", cache),
+            mock.patch.object(core, "HISTORY_FILE", cache / "history.json"),
+            mock.patch.dict(core.os.environ, {"SIGA_TTY": "/dev/ttysTEST", "SIGA_BACKEND": "text"}),
+            mock.patch.object(core, "mise_history", return_value={}),
+            mock.patch.object(core, "shim_active", return_value=False),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def run_track(self, lines):
+        """Feed lines one per read, return the values pushed."""
+        chunks = iter([ln.encode() for ln in lines] + [b""])
+        pushed = []
+        with mock.patch.object(core, "push", side_effect=lambda v, s, slot=None: pushed.append((round(v, 3), s))):
+            seen = core.track(lambda t: next(chunks), lambda b: None, key="k", min_interval=0.0,
+                              mise="deploy", mise_cwd="/repo")
+        return pushed, seen
+
+    LINES = ["[deploy] $ bash deploy.sh\n", "[deploy:sync] $ rsync\n", "copying 1/2\n", "copying 2/2\n",
+             "[deploy:build] $ build\n", "[deploy:verify] $ curl\n"]
+
+    def test_a_stored_plan_steps_the_bar_at_each_phase(self):
+        core.phase_plan_set("deploy", "/repo", self.PLAN)
+        pushed, _ = self.run_track(self.LINES)
+        values = [v for v, s in pushed if s == "run"]
+        self.assertIn(round(7.4 / 19.8, 3), values)          # build started
+        self.assertIn(round((7.4 + 8.8) / 19.8, 3), values)  # verify started
+        self.assertLess(max(values), 0.96)                   # the last part waits for the exit
+
+    def test_without_a_plan_the_whole_stream_count_drives_the_bar(self):
+        # positive control: the same stream, no plan, reads the sync's 2/2 as the whole job
+        pushed, _ = self.run_track(self.LINES)
+        self.assertIn((1.0, "run"), pushed)
+
+    def test_a_plan_with_no_header_in_the_output_leaves_the_count_in_charge(self):
+        # `--output summary`, `task.quiet` or a renamed step: the plan must not pin the bar
+        core.phase_plan_set("deploy", "/repo", self.PLAN)
+        pushed, _ = self.run_track(["copying 1/2\n", "copying 2/2\n"])
+        self.assertIn((1.0, "run"), pushed)
+
+    def test_the_bar_never_steps_back_when_the_first_header_arrives(self):
+        core.phase_plan_set("deploy", "/repo", self.PLAN)
+        lines = ["copying 1/2\n", "copying 2/2\n", "[deploy:sync] $ rsync\n", "[deploy:build] $ build\n"]
+        pushed, _ = self.run_track(lines)
+        values = [v for v, s in pushed if s == "run"]
+        self.assertEqual(values, sorted(values), values)
+
+    def test_a_passed_run_without_steps_forgets_the_plan(self):
+        core.phase_plan_set("deploy", "/repo", self.PLAN)
+        core.phases_park("deploy", "/repo", [])
+        core.phases_settle(0)
+        self.assertEqual(core.phase_plan_get("deploy", "/repo"), [])
+
+    def test_the_run_reports_its_phases(self):
+        _, seen = self.run_track(self.LINES)
+        self.assertEqual([n for n, _ in seen], ["deploy:sync", "deploy:build", "deploy:verify"])
+
+    def test_a_passed_run_becomes_the_plan(self):
+        core.phases_park("deploy", "/repo", self.PLAN)
+        core.phases_settle(0)
+        self.assertEqual(core.phase_plan_get("deploy", "/repo"), self.PLAN)
+
+    def test_a_failed_run_keeps_the_old_plan(self):
+        core.phase_plan_set("deploy", "/repo", self.PLAN)
+        core.phases_park("deploy", "/repo", [["deploy:sync", 1.0], ["deploy:other", 1.0]])
+        core.phases_settle(1)
+        self.assertEqual(core.phase_plan_get("deploy", "/repo"), self.PLAN)
+        core.phases_settle(0)  # nothing parked any more: nothing to save
+        self.assertEqual(core.phase_plan_get("deploy", "/repo"), self.PLAN)
+
+    def test_plans_are_per_project(self):
+        core.phase_plan_set("deploy", "/repo", self.PLAN)
+        self.assertEqual(core.phase_plan_get("deploy", "/other"), [])
+
+    def test_one_phase_is_no_plan(self):
+        core.phase_plan_set("deploy", "/repo", [["deploy:sync", 1.0]])
+        self.assertEqual(core.phase_plan_get("deploy", "/repo"), [])
+
+    def test_siga_end_settles_the_parked_plan(self):
+        from siga import cli
+        core.phases_park("deploy", "/repo", self.PLAN)
+        with mock.patch.object(core, "push"):
+            self.assertEqual(cli.main(["end", "0"]), 0)
+        self.assertEqual(core.phase_plan_get("deploy", "/repo"), self.PLAN)
 
 
 if __name__ == "__main__":

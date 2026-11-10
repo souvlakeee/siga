@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0 (2026-11-10)
+
+- A mise task that runs other tasks moves phase by phase. mise prints a `[task] $ cmd`
+  header as each step starts; siga remembers the order of those steps from the task's last
+  successful run and weights each one by its mise median. The bar stands at the weight of
+  the steps already done plus the current step's share, so it follows the real work, not
+  the clock. A slow step holds at its own boundary (90% of its share) instead of drifting
+  toward the end, and the whole bar stays under 95% until the exit. A count printed inside
+  a step fills only that step's share, so one step's `3/3` no longer reads as the whole
+  task done.
+- A failed run never replaces the learned steps: `siga pipe` parks them and `siga end 0`
+  keeps them; `siga run` does the same through its own exit code.
+- Steps that ran side by side (parallel `depends`) are recognised and left to the time
+  estimate: they start together, so the learned run records each one far shorter than its
+  median. A run that prints no step header (`--output summary`, `task.quiet`) also keeps
+  the 0.5 behaviour, and a passed run with no steps forgets the old plan.
+- The bar never steps back when the first step header arrives after the time estimate.
+- One `mise tasks history` call now serves the task and all its steps.
+
 ## 0.5.1 (2026-11-10)
 
 - The mise timing now works the way agents write commands. 0.5.0 only recognised a
