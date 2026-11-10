@@ -174,6 +174,53 @@ class GhosttyApply(unittest.TestCase):
         core.push(0.5, "run", backend="ghostty", slot=core.SLOTS)
         self.mocks[3].assert_not_called()
 
+    def decode(self):
+        """value and state back out of the OSC 4 colour, the way siga.glsl reads it."""
+        import re
+        seq = self.mocks[3].call_args.args[1].decode()
+        r, g, b = (int(x, 16) for x in re.search(r"#(..)(..)(..)", seq).groups())
+        self.assertEqual((r & 0xE0, g & 0xE0, b & 0xF8), (0xE0, 0xE0, 0xF0))  # the shader's key
+        return round((((r & 31) << 5) | (g & 31)) / 1023, 2), b & 7
+
+    def test_the_new_states_ride_the_free_codes(self):
+        with mock.patch.object(core, "shader_knows_states", return_value=True):
+            for state, code in (("est", 5), ("held", 6), ("step", 7), ("run", 1)):
+                core.push(0.42, state, backend="ghostty", slot=0)
+                self.assertEqual(self.decode(), (0.42, code), state)
+
+    def test_an_old_shader_gets_run_instead(self):
+        with mock.patch.object(core, "shader_knows_states", return_value=False):
+            for state in ("est", "held", "step"):
+                core.push(0.42, state, backend="ghostty", slot=0)
+                self.assertEqual(self.decode(), (0.42, 1), state)
+
+    def test_the_bundled_shader_carries_its_version_line(self):
+        # positive control for shader_knows_states(): the shader setup installs has the line
+        with mock.patch.object(core, "INSTALLED_SHADER", core.DATA / "siga.glsl"), \
+             mock.patch.object(core, "_shader_v2", None):
+            self.assertTrue(core.shader_knows_states())
+        with mock.patch.object(core, "INSTALLED_SHADER", Path(self.tmp.name) / "missing.glsl"), \
+             mock.patch.object(core, "_shader_v2", None):
+            self.assertFalse(core.shader_knows_states())
+
+
+class StateColours(unittest.TestCase):
+    """The bar's colour says how siga knows the value: count, estimate, or estimate outrun."""
+
+    def test_new_states_are_live(self):
+        for state in ("est", "held", "step"):
+            self.assertIn(state, core.LIVE)
+
+    def test_kitty_draws_held_amber_and_est_calmer_than_run(self):
+        held = core.Kitty.colors(0.5, "held", 0.0)[0]
+        self.assertGreater(held[0], held[2])  # amber: red over blue
+        run, est = core.Kitty.colors(0.5, "run", 0.0)[5], core.Kitty.colors(0.5, "est", 0.0)[5]
+        spread = lambda c: max(c) - min(c)  # saturation, roughly
+        self.assertLess(spread(est), spread(run))
+        step = core.Kitty.colors(0.5, "step", 0.0)[5]
+        self.assertGreater(sum(step), sum(run))  # the flash is brighter
+        self.assertEqual(core.Kitty.colors(0.5, "held", 0.0)[30], (34, 38, 46))  # unlit stays off
+
 
 class WindowSlots(unittest.TestCase):
     """Panes of one Ghostty window (herdr) share the palette, so they must claim distinct
@@ -421,7 +468,7 @@ class MiseHistory(unittest.TestCase):
 
     def test_no_mise_history_falls_back_to_siga_record(self):
         pushed, _ = self.track("deploy", mise_eta=None, own=1.0)
-        self.assertEqual(pushed[0], (0.0, "run"))
+        self.assertEqual(pushed[0], (0.0, "est"))  # a time estimate, so the calmer colour
         self.assertGreater(max(v for v, _ in pushed), 0.15)
 
     def test_a_plain_command_never_asks_mise(self):
@@ -469,7 +516,7 @@ class MisePhases(unittest.TestCase):
     def test_a_stored_plan_steps_the_bar_at_each_phase(self):
         core.phase_plan_set("deploy", "/repo", self.PLAN)
         pushed, _ = self.run_track(self.LINES)
-        values = [v for v, s in pushed if s == "run"]
+        values = [v for v, s in pushed if s in core.LIVE]
         self.assertIn(round(7.4 / 19.8, 3), values)          # build started
         self.assertIn(round((7.4 + 8.8) / 19.8, 3), values)  # verify started
         self.assertLess(max(values), 0.96)                   # the last part waits for the exit
@@ -478,6 +525,36 @@ class MisePhases(unittest.TestCase):
         # positive control: the same stream, no plan, reads the sync's 2/2 as the whole job
         pushed, _ = self.run_track(self.LINES)
         self.assertIn((1.0, "run"), pushed)
+
+    def test_the_colour_says_how_each_step_is_known(self):
+        core.phase_plan_set("deploy", "/repo", self.PLAN)
+        clock = iter([float(t) for t in range(100)])
+        with mock.patch.object(core.time, "time", side_effect=lambda: next(clock)):
+            pushed, _ = self.run_track(["[deploy:sync] $ rsync\n", "copying 1/2\n", "copying 2/2\n",
+                                        "[deploy:build] $ build\n", "\n", "\n", "\n", "\n", "\n", "\n",
+                                        "\n", "\n", "\n", "\n", "\n"])
+        states = [s for _, s in pushed]
+        self.assertIn("run", states)   # sync's own 1/2, 2/2 count
+        self.assertIn("est", states)   # build filling by its median
+        self.assertIn("held", states)  # build outran its 8.8 s median, still working
+        self.assertEqual(states[-1], "held")
+
+    def test_a_new_step_flashes(self):
+        from siga.parse import Phases
+        ph = Phases(parent="deploy", plan=["a", "b"], weights={"a": 5, "b": 5})
+        ph.feed("[b] $ go", 10.0)
+        self.assertTrue(ph.started(10.2))
+        self.assertFalse(ph.started(10.6))  # positive control: the flash ends
+
+    def test_an_estimate_turns_held_at_its_hold(self):
+        clock = iter([float(t) / 10 for t in range(200)])
+        with mock.patch.object(core.time, "time", side_effect=lambda: next(clock)), \
+             mock.patch.object(core, "mise_history", return_value={"deploy": 1.0}):
+            pushed, _ = self.run_track(["\n"] * 15)
+        states = [s for _, s in pushed]
+        self.assertEqual(states[0], "est")
+        self.assertIn("held", states)
+        self.assertEqual(max(v for v, s in pushed if s == "held"), 0.9)
 
     def test_a_plan_with_no_header_in_the_output_leaves_the_count_in_charge(self):
         # `--output summary`, `task.quiet` or a renamed step: the plan must not pin the bar

@@ -57,6 +57,60 @@ class Decide(unittest.TestCase):
         self.assertFalse(hook.backgrounds("make -j8 | grep -E 'error|warn'"))
 
 
+class AutoWrapMise(unittest.TestCase):
+    """A long mise task gets a bar with no pattern, from mise's own history."""
+
+    def decide(self, command, medians, threshold=20):
+        with mock.patch.object(hook.core, "mise_history_cached", return_value=medians) as asked, \
+             mock.patch.object(hook, "mise_auto_wrap", return_value=threshold):
+            return hook.decide(command), asked
+
+    def test_a_long_task_is_wrapped(self):
+        self.assertEqual(self.decide("mise run deploy", {"deploy": 21.3})[0], "pipe")
+        self.assertEqual(self.decide("cd /repo && mise run deploy 2>&1 | tail -1", {"deploy": 21.3})[0], "pipe")
+
+    def test_a_short_task_is_not(self):
+        self.assertIsNone(self.decide("mise run lint:fast", {"lint:fast": 3.0})[0])
+        # positive control: the same task once its median passes the threshold
+        self.assertEqual(self.decide("mise run lint:fast", {"lint:fast": 25.0})[0], "pipe")
+
+    def test_no_history_or_zero_is_off(self):
+        self.assertIsNone(self.decide("mise run deploy", {})[0])
+        self.assertIsNone(self.decide("mise run deploy", {"deploy": 99.0}, threshold=0)[0])
+
+    def test_a_command_without_mise_never_asks(self):
+        out, asked = self.decide("ls -la", {"deploy": 99.0})
+        self.assertIsNone(out)
+        asked.assert_not_called()
+
+    def test_skip_and_background_still_refuse(self):
+        self.assertIsNone(self.decide("mise run deploy &", {"deploy": 99.0})[0])
+
+    def test_the_last_config_that_sets_it_wins(self):
+        with mock.patch.object(hook, "configs", return_value=[
+                {"mise": {"auto_wrap": 20}}, {"wrap": {}}, {"mise": {"auto_wrap": 45}}]):
+            self.assertEqual(hook.mise_auto_wrap(), 45)
+        with mock.patch.object(hook, "configs", return_value=[{"mise": {"auto_wrap": True}}]):
+            self.assertEqual(hook.mise_auto_wrap(), 0)  # a bool is not a number of seconds
+
+    def test_the_bundled_default_is_twenty_seconds(self):
+        with mock.patch.object(hook, "project_config", return_value=None), \
+             mock.patch.object(hook.Path, "home", return_value=Path("/nonexistent")):
+            self.assertEqual(hook.mise_auto_wrap(), 20)
+
+
+class MiseCache(unittest.TestCase):
+    def test_a_second_ask_within_the_ttl_runs_no_subprocess(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(hook.core, "CACHE", Path(tmp)), \
+             mock.patch.object(hook.core, "mise_history", return_value={"deploy": 21.3}) as mh:
+            self.assertEqual(hook.core.mise_history_cached("/repo"), {"deploy": 21.3})
+            self.assertEqual(hook.core.mise_history_cached("/repo"), {"deploy": 21.3})
+            self.assertEqual(mh.call_count, 1)
+            hook.core.mise_history_cached("/repo", ttl=0)  # expired: asks mise again
+            self.assertEqual(mh.call_count, 2)
+
+
 class ProjectConfig(unittest.TestCase):
     def test_project_pattern_loads(self):
         import os

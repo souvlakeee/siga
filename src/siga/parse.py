@@ -183,6 +183,7 @@ class Phases:
         self.seen = []         # [name, start time] in order of first appearance
         self.current = None    # the newest phase that is in the plan
         self.count = None      # a fresh Progress per phase: a count belongs to its phase
+        self.source = None     # how value() got the step's share: count, time or held
 
     @property
     def active(self):
@@ -217,9 +218,23 @@ class Phases:
         done = sum(self.weights[p] for p in self.plan[:i])
         weight = self.weights[self.current]
         start = next(t for n, t in self.seen if n == self.current)
-        share = self.count.value if self.count.trusted else (now - start) / weight
-        share = min(self.PHASE_CAP, max(0.0, share))
+        if self.count.trusted:
+            share, self.source = self.count.value, "count"
+        else:
+            share, self.source = (now - start) / weight, "time"
+        if share >= self.PHASE_CAP:
+            share = self.PHASE_CAP
+            if self.source == "time":
+                self.source = "held"  # the step outran its median and is still working
+        share = max(0.0, share)
         return min(self.BAR_CAP, (done + share * weight) / total)
+
+    def started(self, now, within=0.5):
+        """True for `within` seconds after the current step's header: the bar flashes."""
+        if self.current is None:
+            return False
+        start = next(t for n, t in self.seen if n == self.current)
+        return now - start < within
 
     def observed(self, end):
         """[[name, seconds], ...] for this run: what the next run of the task plans on."""

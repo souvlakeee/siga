@@ -1,4 +1,5 @@
 // siga: repaints Siga font glyphs (U+10FB00..U+10FB4F) as live segmented bars.
+// siga-shader: 2  (siga sends states 5-7 only to a shader that carries this line)
 //
 // Glyph pixels carry key color (1, (17 + 12*bar)/255, (48 + 2*slot)/255): slot 0..79
 // across the 20-cell bar (4 slots per cell), and bar 0..3 says which of FAMILIES bars
@@ -12,7 +13,11 @@
 // #e0e0e0..#ffffff, near the default ramp it overwrites:
 //   R = 0xE0 | (v >> 5)          v = progress in 0..1023
 //   G = 0xE0 | (v & 31)
-//   B = 0xF0 | state             state: 0 clear, 1 run, 2 busy, 3 done, 4 fail
+//   B = 0xF0 | state             state: 0 clear, 1 run, 2 busy, 3 done, 4 fail,
+//                                5 est, 6 held, 7 step
+// The three running colours say how siga knows the value: run (1) is an exact count the
+// job printed, est (5) a time estimate, held (6) an estimate that ran out while the job
+// is still working, and step (7) a short flash as a new step of a mise task begins.
 
 const float CELLS = 20.0;
 const float SEGS_PER_CELL = 2.0;
@@ -32,6 +37,9 @@ const vec3 RUN_A = vec3(0.13, 0.83, 0.93);
 const vec3 RUN_B = vec3(0.23, 0.51, 0.96);
 const vec3 DONE = vec3(0.20, 0.80, 0.42);
 const vec3 FAIL = vec3(0.96, 0.30, 0.30);
+const vec3 EST_A = vec3(0.32, 0.60, 0.70);   // the run gradient, calmer: a time estimate
+const vec3 EST_B = vec3(0.33, 0.44, 0.74);
+const vec3 HELD = vec3(0.98, 0.66, 0.18);    // amber: the estimate ran out, still working
 
 // A per-(bar,cell) id, so cells of different bars standing side by side never merge
 // when the edges are scanned, or -1 off a bar. One texture fetch: the green/red ratio
@@ -119,15 +127,24 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float segFill = sx / segW < lit ? 1.0 : 0.0;
     vec3 col = OFF;
 
-    if (state == 1) {
-        vec3 base = mix(RUN_A, RUN_B, pos);
-        // Fast highlight wave running through the lit segments.
-        float wave = fract(iTime * 1.6 - seg / SEGS * 1.5);
-        float shine = 0.45 * pow(wave, 10.0);
+    if (state == 1 || state == 5 || state == 7) {
+        // run: bright, fast shine. est: the same motion, calmer colour and pace, so an
+        // estimate never looks as sure as a count. step: run's bar lifted toward white.
+        bool est = state == 5;
+        vec3 base = est ? mix(EST_A, EST_B, pos) : mix(RUN_A, RUN_B, pos);
+        // Highlight wave running through the lit segments.
+        float wave = fract(iTime * (est ? 0.9 : 1.6) - seg / SEGS * 1.5);
+        float shine = (est ? 0.30 : 0.45) * pow(wave, 10.0);
         // Leading segment pulses.
         float lead = (lit > 0.0 && lit < 1.0) || (seg == floor(v * SEGS) - 1.0 && lit == 1.0 && v < 1.0) ? 1.0 : 0.0;
-        float pulse = lead * (0.35 + 0.35 * sin(iTime * 12.0));
-        col = mix(OFF, base * (1.0 + shine + pulse), segFill);
+        float pulse = lead * (est ? 0.25 + 0.25 * sin(iTime * 6.0) : 0.35 + 0.35 * sin(iTime * 12.0));
+        vec3 lin = base * (1.0 + shine + pulse);
+        if (state == 7) lin = mix(lin, vec3(1.0), 0.45);
+        col = mix(OFF, lin, segFill);
+    } else if (state == 6) {
+        // held: amber, breathing slowly; the bar stays where the estimate stopped
+        float breathe = 0.80 + 0.20 * sin(iTime * 2.5);
+        col = mix(OFF, HELD * breathe, segFill);
     } else if (state == 2) {
         // Comet bouncing across the bar.
         float t = fract(iTime / 1.2);

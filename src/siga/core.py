@@ -41,8 +41,12 @@ HISTORY_FILE = CACHE / "history.json"
 
 CELLS = 20
 SLOTS = 4  # independent bar slots per window; a slot index >= SLOTS is scratch (renders nothing)
-STATES = {"clear": 0, "run": 1, "busy": 2, "done": 3, "fail": 4}
-LIVE = ("run", "busy")
+# run: an exact count drives the bar; est: a time estimate; held: the estimate ran out
+# while the job still works; step: a brief flash as a mise task's next step begins
+STATES = {"clear": 0, "run": 1, "busy": 2, "done": 3, "fail": 4, "est": 5, "held": 6, "step": 7}
+LIVE = ("run", "busy", "est", "held", "step")
+# what a shader older than `siga-shader: 2` is sent instead: it draws only states 0-4
+_OLD_SHADER_STATE = {"est": "run", "held": "run", "step": "run"}
 
 
 # ---------------------------------------------------------------- state
@@ -421,6 +425,25 @@ def write_tty(tty, data):
 
 # ---------------------------------------------------------------- ghostty
 
+INSTALLED_SHADER = Path.home() / ".config" / "siga" / "siga.glsl"
+_shader_v2 = None
+
+
+def shader_knows_states():
+    """True when the Ghostty shader siga setup installed draws states 5-7 (est, held,
+    step). Between a plugin update and the next session start (when the hook copies the
+    new shader in) the installed copy can be older, and an old shader paints those codes
+    as nothing; such a window keeps getting `run`. Read once per process."""
+    global _shader_v2
+    if _shader_v2 is None:
+        try:
+            with open(INSTALLED_SHADER, encoding="utf-8", errors="replace") as f:
+                _shader_v2 = "siga-shader: 2" in f.read(400)
+        except OSError:
+            _shader_v2 = False
+    return _shader_v2
+
+
 class Ghostty:
     """Each slot's value + state rides palette entry BASE+slot, read by data/siga.glsl.
 
@@ -440,6 +463,8 @@ class Ghostty:
     def apply(self, value, state, slot=None):
         if slot is None or slot >= SLOTS:  # scratch bar: tracked but nothing renders it
             return
+        if state in _OLD_SHADER_STATE and not shader_knows_states():
+            state = _OLD_SHADER_STATE[state]
         v = max(0, min(1023, round(value * 1023)))
         seq = "\033]4;%d;#%02x%02x%02x\a" % (
             self.BASE + slot, 0xE0 | (v >> 5), 0xE0 | (v & 31), 0xF0 | STATES[state])
@@ -517,12 +542,22 @@ class Kitty:
                 dist = head - i if ph < 0.5 else i - head
                 k = math.exp(-dist * 0.55) if dist >= 0 else 0.0
                 col = tuple(int(o + (b - o) * k) for o, b in zip(off, base))
-            elif state == "run" and i < lit_n:
-                wave = (t * 1.6 - p * 1.5) % 1.0
-                boost = 1 + 0.45 * wave ** 10
+            elif state in ("run", "est", "step") and i < lit_n:
+                # same as siga.glsl: est is the run bar in a calmer colour and pace,
+                # step is the run bar lifted toward white for a moment
+                est = state == "est"
+                if est:
+                    base = (int(82 + p * 2), int(153 - p * 41), int(179 + p * 10))
+                wave = (t * (0.9 if est else 1.6) - p * 1.5) % 1.0
+                boost = 1 + (0.30 if est else 0.45) * wave ** 10
                 if i + 1 > lit_n:  # leading partial segment pulses
-                    boost += 0.35 + 0.35 * math.sin(t * 12)
+                    boost += (0.25 + 0.25 * math.sin(t * 6)) if est else (0.35 + 0.35 * math.sin(t * 12))
                 col = tuple(min(255, int(c * boost)) for c in base)
+                if state == "step":
+                    col = tuple(int(c + (255 - c) * 0.45) for c in col)
+            elif state == "held" and i < lit_n:
+                breathe = 0.80 + 0.20 * math.sin(t * 2.5)  # amber: the estimate ran out
+                col = tuple(int(c * breathe) for c in (250, 168, 46))
             else:
                 col = off
             out.append(col)
@@ -767,6 +802,27 @@ def mise_history(cwd=None):
         return {}
 
 
+def mise_history_cached(cwd=None, ttl=300):
+    """mise_history() kept on disk for `ttl` seconds per project. The hook asks on every
+    `mise run` command, and a file read is far cheaper than a mise subprocess."""
+    import hashlib
+    where = os.path.abspath(os.path.expanduser(cwd or os.getcwd()))
+    f = CACHE / ("mise-%s.json" % hashlib.sha1(where.encode()).hexdigest()[:10])
+    try:
+        doc = json.loads(f.read_text())
+        if time.time() - doc["time"] < ttl and isinstance(doc.get("medians"), dict):
+            return doc["medians"]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    medians = mise_history(where)
+    try:
+        CACHE.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"time": time.time(), "medians": medians}))
+    except OSError:
+        pass
+    return medians
+
+
 def mise_eta(task, cwd=None):
     """Median duration in seconds of `task` from mise's own run history, or None."""
     return mise_history(cwd).get(task)
@@ -874,7 +930,7 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
     t0 = time.time()
     last_push, last_val = 0.0, None
     timed = eta or (phases is not None and phases.active)
-    push(0.0, "run", slot=slot) if timed else push(0.0, "busy", slot=slot)
+    push(0.0, "est", slot=slot) if timed else push(0.0, "busy", slot=slot)
     while True:
         chunk = read_chunk(min_interval)
         if chunk == b"":
@@ -894,17 +950,23 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
             # Phases already maps a count into the span of the phase that printed it.
             # Never below what is already shown: the time estimate ran before the first
             # header, and a bar that steps back reads as something undone.
-            shown = last_val[0] if last_val and last_val[1] == "run" else 0.0
-            val, state = max(phase_val, shown), "run"
+            shown = last_val[0] if last_val and last_val[1] in LIVE else 0.0
+            # the colour says how the step's share is known: a count it printed (run),
+            # its median (est), or a median it has already outrun (held); a step that
+            # has just begun flashes (step) for half a second
+            state = "step" if phases.started(now) else {"count": "run", "held": "held"}.get(phases.source, "est")
+            val = max(phase_val, shown)
         elif prog.trusted:
             val, state = prog.value, prog.state or "run"
         elif eta:
             # Hold a time-estimated bar at 90%, not 99%: a near-full bar reads as
             # "done" while the job is still running. The last tenth fills only on the
             # real exit (push below / `siga end`), so overrunning the estimate looks
-            # like "almost there, still working", not finished. A trusted N/M count
-            # is exact and uncapped — this ceiling is for the guess only.
-            val, state = min(0.90, (now - t0) / eta), "run"
+            # like "almost there, still working", not finished, and the bar turns
+            # amber (held) there. A trusted N/M count is exact and uncapped — this
+            # ceiling is for the guess only.
+            frac = (now - t0) / eta
+            val, state = min(0.90, frac), ("held" if frac >= 0.90 else "est")
         else:
             continue
         if shim_active(slot):
