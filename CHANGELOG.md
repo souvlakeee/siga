@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (2026-11-10)
 
 - A `mise run <task>` is timed from mise's own run history. mise 2026.11.3+ records the
   duration of every task run, so siga reads the task's median
