@@ -190,6 +190,7 @@ def main(argv):
                           step=opts["step"], steps=opts["steps"], slot=slot, mise=opts["mise"],
                           mise_cwd=opts["mise_cwd"])
         core.phases_park(opts["mise"], opts["mise_cwd"], seen)
+        core.pipe_done(slot)  # `siga end` finishes this bar, not a guess among live ones
     elif cmd == "run":
         opts = parse_opts(args)
         if opts is None:
