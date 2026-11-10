@@ -31,7 +31,8 @@
 
 A few independent bar slots per window: each ⟦bar⟧ gets its own, so a finished bar freezes
 while the next job's fills (jobs run one at a time; a ring of slots recycles). Progress
-comes from N/M counts, NN% or ffmpeg time= in the output; without them, from how long the
+comes from N/M counts, NN% or ffmpeg time= in the output; without them, a `mise run TASK`
+fills by the task's median in mise's run history, and any other command by how long the
 same command (KEY) took before, or a busy sweep the first time.
 """
 import os
@@ -79,7 +80,7 @@ def _slot_arg(args):
 
 
 def parse_opts(args):
-    opts = {"pty": False, "shim": False, "key": None, "step": None, "steps": None, "rest": []}
+    opts = {"pty": False, "shim": False, "key": None, "step": None, "steps": None, "mise": None, "rest": []}
     args = list(args)
     while args and args[0].startswith("-") and args[0] != "--":
         flag = args.pop(0)
@@ -87,7 +88,7 @@ def parse_opts(args):
             opts["pty"] = True
         elif flag == "--shim":
             opts["shim"] = True
-        elif flag in ("-k", "--key", "--step", "--steps") and args:
+        elif flag in ("-k", "--key", "--step", "--steps", "--mise") and args:
             name = {"-k": "key", "--key": "key"}.get(flag, flag[2:])
             opts[name] = args.pop(0)
         else:
@@ -183,7 +184,7 @@ def main(argv):
             return 2
         slot = core.resolve_slot(slot_opt, default="scratch")
         core.track(fd_reader(sys.stdin.fileno()), stdout_writer, opts["key"],
-                   step=opts["step"], steps=opts["steps"], slot=slot)
+                   step=opts["step"], steps=opts["steps"], slot=slot, mise=opts["mise"])
     elif cmd == "run":
         opts = parse_opts(args)
         if opts is None:
@@ -197,7 +198,8 @@ def main(argv):
         env = shim_env(slot) if opts["shim"] else None
         read, wait = core.spawn(args, use_pty=opts["pty"], env=env)
         core.track(read, stdout_writer, opts["key"] or core.command_key(" ".join(args)),
-                   clean=opts["pty"], step=opts["step"], steps=opts["steps"], slot=slot)
+                   clean=opts["pty"], step=opts["step"], steps=opts["steps"], slot=slot,
+                   mise=opts["mise"] or core.mise_task(" ".join(args)))
         return main(["end", str(wait()), "--slot", str(slot)])
     elif cmd == "selftest":
         from siga import selftest

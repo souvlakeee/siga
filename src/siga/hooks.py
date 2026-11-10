@@ -159,9 +159,11 @@ def wrap(command, mode):
     key = core.command_key(command)
     body, tail = split_filter(command)
     body = add_git_progress(body)
+    task = core.mise_task(body)  # a `mise run X` is timed from mise's own run history
+    opts = "-k %s%s" % (key, " --mise %s" % shlex.quote(task) if task else "")
     if mode == "pty":
-        return "set -o pipefail; siga run --pty -k %s -- sh -c %s%s" % (key, shlex.quote(body), tail)
-    return "set -o pipefail; { %s\n} 2>&1 | siga pipe -k %s%s; siga end $?" % (body, key, tail)
+        return "set -o pipefail; siga run --pty %s -- sh -c %s%s" % (opts, shlex.quote(body), tail)
+    return "set -o pipefail; { %s\n} 2>&1 | siga pipe %s%s; siga end $?" % (body, opts, tail)
 
 
 def backgrounds(command):

@@ -43,6 +43,7 @@ For anything else, pick the matching form:
 | uses tqdm, rich, click, cli-progress (exact values) | `siga run --shim -- <cmd>` (add `--pty` for cli-progress) |
 | prints named steps | `siga run --step '<regex for a step line>' [--steps N] -- <cmd>` |
 | prints nothing useful | `siga run -- <cmd>`: busy the first time, then the learned duration |
+| is a mise task | `siga run -- mise run <task>`: timed from mise's run history (`mise tasks history --summary`), siga's record as fallback |
 | is your own script | call `siga set 3/10` (or `30%`) between steps, then `siga done` / `siga fail`; or print `\e]9;4;1;30\e\\` (OSC 9;4) |
 | must stay in a pipeline | `set -o pipefail; cmd 2>&1 \| siga pipe; siga end $?` |
 
