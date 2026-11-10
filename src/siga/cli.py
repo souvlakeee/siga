@@ -80,7 +80,8 @@ def _slot_arg(args):
 
 
 def parse_opts(args):
-    opts = {"pty": False, "shim": False, "key": None, "step": None, "steps": None, "mise": None, "rest": []}
+    opts = {"pty": False, "shim": False, "key": None, "step": None, "steps": None, "mise": None,
+            "mise_cwd": None, "rest": []}
     args = list(args)
     while args and args[0].startswith("-") and args[0] != "--":
         flag = args.pop(0)
@@ -88,8 +89,8 @@ def parse_opts(args):
             opts["pty"] = True
         elif flag == "--shim":
             opts["shim"] = True
-        elif flag in ("-k", "--key", "--step", "--steps", "--mise") and args:
-            name = {"-k": "key", "--key": "key"}.get(flag, flag[2:])
+        elif flag in ("-k", "--key", "--step", "--steps", "--mise", "--mise-cwd") and args:
+            name = {"-k": "key", "--key": "key"}.get(flag, flag[2:].replace("-", "_"))
             opts[name] = args.pop(0)
         else:
             print(f"siga: unknown option {flag}", file=sys.stderr)
@@ -184,7 +185,8 @@ def main(argv):
             return 2
         slot = core.resolve_slot(slot_opt, default="scratch")
         core.track(fd_reader(sys.stdin.fileno()), stdout_writer, opts["key"],
-                   step=opts["step"], steps=opts["steps"], slot=slot, mise=opts["mise"])
+                   step=opts["step"], steps=opts["steps"], slot=slot, mise=opts["mise"],
+                   mise_cwd=opts["mise_cwd"])
     elif cmd == "run":
         opts = parse_opts(args)
         if opts is None:
@@ -197,9 +199,10 @@ def main(argv):
         slot = core.resolve_slot(slot_opt, default="scratch")
         env = shim_env(slot) if opts["shim"] else None
         read, wait = core.spawn(args, use_pty=opts["pty"], env=env)
+        task, cwd = core.mise_run(" ".join(args))
         core.track(read, stdout_writer, opts["key"] or core.command_key(" ".join(args)),
                    clean=opts["pty"], step=opts["step"], steps=opts["steps"], slot=slot,
-                   mise=opts["mise"] or core.mise_task(" ".join(args)))
+                   mise=opts["mise"] or task, mise_cwd=opts["mise_cwd"] or cwd)
         return main(["end", str(wait()), "--slot", str(slot)])
     elif cmd == "selftest":
         from siga import selftest

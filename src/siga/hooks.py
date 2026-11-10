@@ -159,8 +159,12 @@ def wrap(command, mode):
     key = core.command_key(command)
     body, tail = split_filter(command)
     body = add_git_progress(body)
-    task = core.mise_task(body)  # a `mise run X` is timed from mise's own run history
-    opts = "-k %s%s" % (key, " --mise %s" % shlex.quote(task) if task else "")
+    task, cwd = core.mise_run(body)  # a `mise run X` is timed from mise's own run history
+    opts = "-k %s" % key
+    if task:
+        opts += " --mise %s" % shlex.quote(task)
+        if cwd:  # the history is per project: read it where the command's `cd` lands
+            opts += " --mise-cwd %s" % shlex.quote(cwd)
     if mode == "pty":
         return "set -o pipefail; siga run --pty %s -- sh -c %s%s" % (opts, shlex.quote(body), tail)
     return "set -o pipefail; { %s\n} 2>&1 | siga pipe %s%s; siga end $?" % (body, opts, tail)
