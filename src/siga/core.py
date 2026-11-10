@@ -290,6 +290,12 @@ def resolve_slot(explicit=None, default="last", ttl=300):
     if explicit is not None:
         return int(explicit)
     pane = _pane_read()
+    if default == "live" and pane.get("piped") is not None:
+        # `siga end` after `siga pipe`: finish the bar that pipe drove. Guessing among the
+        # live bars finished a stale one instead and froze the real bar short of done.
+        slot = pane.pop("piped")
+        _pane_write(pane)
+        return int(slot)
     pend = [e for e in pane.get("pending", []) if time.time() - e[1] < ttl]
     slot = pend.pop(0)[0] if pend else None
     pane["pending"] = pend
@@ -300,9 +306,12 @@ def resolve_slot(explicit=None, default="last", ttl=300):
         return SLOTS
     if default == "live":
         me = own_tty() or ""
-        for i, rec in enumerate(_win_read()["slots"]):
-            if rec.get("state") in LIVE and rec.get("pane", me) == me:  # absent = legacy, ours
-                return i
+        # the most recently pushed of this pane's live bars: an older one is a bar some
+        # interrupted command left running, not the one that just ended
+        live = [(rec.get("time", 0), i) for i, rec in enumerate(_win_read()["slots"])
+                if rec.get("state") in LIVE and rec.get("pane", me) == me]  # absent = legacy, ours
+        if live:
+            return max(live)[1]
         if pane.get("scratch", {}).get("state") in LIVE:
             return SLOTS
     return pane.get("last", 0)
@@ -804,6 +813,13 @@ def phases_park(task, cwd, observed):
         return  # a plain command: no pane write on every pipe
     # a mise run is parked even with no phases, so a passed run can forget a stale plan
     doc["phases"] = {"task": task, "cwd": cwd, "observed": observed or []}
+    _pane_write(doc)
+
+
+def pipe_done(slot):
+    """Hand the slot a `siga pipe` drove to the `siga end` that follows it."""
+    doc = _pane_read()
+    doc["piped"] = slot
     _pane_write(doc)
 
 

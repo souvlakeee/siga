@@ -101,6 +101,31 @@ class Slots(unittest.TestCase):
         core.push(0.3, "run", slot=s)
         self.assertEqual(core.resolve_slot(default="live"), s)  # end finds the live bar
 
+    def test_end_finishes_the_bar_its_pipe_drove_not_a_stale_one(self):
+        # seen live: an interrupted command left slot 1 running; the deploy drove slot 2
+        # and `siga end` finished slot 1, so the deploy's bar froze at 95%
+        stale = core.allocate()
+        core.resolve_slot(default="scratch")
+        core.push(0.4, "run", slot=stale)
+        s = core.allocate()
+        core.resolve_slot(default="scratch")
+        core.push(0.95, "run", slot=s)
+        core.pipe_done(s)
+        core.push(0.5, "run", slot=stale)  # the stale bar even holds the newest push
+        self.assertEqual(core.resolve_slot(default="live"), s)
+        # positive control: with no hand-over, the guess lands on the newest live bar
+        self.assertEqual(core.resolve_slot(default="live"), stale)
+
+    def test_without_a_hand_over_end_takes_the_newest_live_bar(self):
+        old = core.allocate()
+        core.resolve_slot(default="scratch")
+        core.push(0.4, "run", slot=old)
+        new = core.allocate()
+        core.resolve_slot(default="scratch")
+        core.push(0.6, "run", slot=new)
+        self.assertGreater(new, old)  # index order would pick `old`
+        self.assertEqual(core.resolve_slot(default="live"), new)
+
     def test_fail_live_only_hits_live_bars(self):
         core.push(1.0, "done", slot=0)
         core.push(0.6, "run", slot=1)

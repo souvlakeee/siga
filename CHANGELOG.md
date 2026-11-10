@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1 (2026-11-10)
+
+- A piped job's bar now always finishes. `siga end` could not tell which bar its
+  `siga pipe` had driven, so it finished the first live bar in slot order. When an
+  interrupted command had left an older bar running, `end` finished that one, and the real
+  job's bar froze short of done (seen on a deploy that stopped at 95%). `siga pipe` now
+  hands its slot to the `siga end` that follows it. With no hand-over, `end` takes this
+  pane's most recently pushed live bar instead of the lowest slot number.
+
 ## 0.6.0 (2026-11-10)
 
 - A mise task that runs other tasks moves phase by phase. mise prints a `[task] $ cmd`
