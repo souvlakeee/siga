@@ -32,8 +32,9 @@
 A few independent bar slots per window: each ⟦bar⟧ gets its own, so a finished bar freezes
 while the next job's fills (jobs run one at a time; a ring of slots recycles). Progress
 comes from N/M counts, NN% or ffmpeg time= in the output; without them, a `mise run TASK`
-fills by the task's median in mise's run history, and any other command by how long the
-same command (KEY) took before, or a busy sweep the first time.
+fills by the task's median in mise's run history (phase by phase when it runs other
+tasks), and any other command by how long the same command (KEY) took before, or a busy
+sweep the first time.
 """
 import os
 import sys
@@ -138,6 +139,7 @@ def main(argv):
         core.push(float(core.load(slot).get("value", 0.0)), "fail", slot=slot)
     elif cmd == "end":
         rc = int(args[0]) if args else 0
+        core.phases_settle(rc)  # a piped mise run's phases become its plan only if it passed
         slot = core.resolve_slot(slot_opt, default="live")
         if rc == 0:
             core.push(1.0, "done", slot=slot)
@@ -184,9 +186,10 @@ def main(argv):
         if opts is None:
             return 2
         slot = core.resolve_slot(slot_opt, default="scratch")
-        core.track(fd_reader(sys.stdin.fileno()), stdout_writer, opts["key"],
-                   step=opts["step"], steps=opts["steps"], slot=slot, mise=opts["mise"],
-                   mise_cwd=opts["mise_cwd"])
+        seen = core.track(fd_reader(sys.stdin.fileno()), stdout_writer, opts["key"],
+                          step=opts["step"], steps=opts["steps"], slot=slot, mise=opts["mise"],
+                          mise_cwd=opts["mise_cwd"])
+        core.phases_park(opts["mise"], opts["mise_cwd"], seen)
     elif cmd == "run":
         opts = parse_opts(args)
         if opts is None:
@@ -200,9 +203,11 @@ def main(argv):
         env = shim_env(slot) if opts["shim"] else None
         read, wait = core.spawn(args, use_pty=opts["pty"], env=env)
         task, cwd = core.mise_run(" ".join(args))
-        core.track(read, stdout_writer, opts["key"] or core.command_key(" ".join(args)),
-                   clean=opts["pty"], step=opts["step"], steps=opts["steps"], slot=slot,
-                   mise=opts["mise"] or task, mise_cwd=opts["mise_cwd"] or cwd)
+        task, cwd = opts["mise"] or task, opts["mise_cwd"] or cwd
+        seen = core.track(read, stdout_writer, opts["key"] or core.command_key(" ".join(args)),
+                          clean=opts["pty"], step=opts["step"], steps=opts["steps"], slot=slot,
+                          mise=task, mise_cwd=cwd)
+        core.phases_park(task, cwd, seen)  # `end` keeps them only if the command passed
         return main(["end", str(wait()), "--slot", str(slot)])
     elif cmd == "selftest":
         from siga import selftest

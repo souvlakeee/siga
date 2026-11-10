@@ -77,6 +77,8 @@ pipe = ['^mise\s+run\s+(deploy|build|test|render)\b']
 mise run deploy     # the bar fills against the median of your real deploys
 ```
 
+A task that runs other tasks moves **phase by phase**. mise prints a `[task] $ cmd` header as each step starts, and siga places the bar by the medians of the steps already done, so in a 20 s deploy whose build starts after a 7 s sync, the bar stands at 35% the moment the build begins, whatever the clock says. A slow step holds the bar at its own boundary instead of sliding toward 100%. siga learns the steps from the task's last successful run.
+
 That history belongs to the project, not to one terminal: every pane and session that ran the task fed it, so a task's first run in a new terminal already has a real bar. A task mise has never run falls back to siga's own record, then to a busy sweep. Check what siga will use with `mise tasks history --summary`.
 
 For one-off commands:

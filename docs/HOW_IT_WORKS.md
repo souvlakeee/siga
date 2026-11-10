@@ -100,7 +100,19 @@ so the next run fills by time and stops at 90% until the command exits. A `mise 
 is timed from mise's own run history first (`mise tasks history --summary --json`, the
 task's `median_ms`): the hook passes the task name as `--mise <task>`, and `siga run`
 reads it from the command. No mise, an older mise or a task with no runs falls back to
-siga's record. `--step REGEX`
+siga's record.
+
+A mise task that runs other tasks moves phase by phase. siga remembers the order of the
+`[name] $ cmd` headers from the task's last successful run (per project, in
+`history.json`), weights each phase by its mise median, and places the bar at the weight
+of the phases already passed plus the current phase's share. That share comes from a count
+the phase printed, else from its elapsed time, and stops at 90% of the phase, so a slow
+phase holds at its own boundary. The whole bar stays under 95% until the exit. A failed run
+never replaces the plan: `siga pipe` parks the phases and `siga end 0` keeps them.
+Steps that ran side by side (parallel `depends`) start together, so the learned run
+records each far shorter than its median; such a plan is ignored and the time estimate
+runs instead. A run with no step header in its output (`--output summary`,
+`task.quiet`) is timed the 0.5 way too. `--step REGEX`
 counts named steps instead, and remembers how many there were.
 
 `--shim` reads values from inside the program: a Python `sitecustomize` patches tqdm, rich

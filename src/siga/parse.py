@@ -151,11 +151,95 @@ class Progress:
         return self.value is not None and self.hits >= 2
 
 
+class Phases:
+    """Where a multi-step mise task is, from the `[task] $ cmd` header mise prints as
+    each task starts a command.
+
+    plan: the phase names, in order, seen on the last successful run of the same task;
+    weights: seconds per phase (mise's medians, else what siga measured last time).
+    The bar stands at the weight of the phases already passed, plus the current
+    phase's share: from a count it printed, else from its elapsed time. That share is
+    capped at PHASE_CAP of the phase, so a slow phase holds at its own boundary instead
+    of sliding into the next phase's span; the whole bar never passes BAR_CAP before
+    the real exit.
+    """
+
+    HEADER = re.compile(r"^\[([A-Za-z0-9_][\w:.-]*)\] \$ ")
+    PHASE_CAP = 0.90
+    BAR_CAP = 0.95
+
+    # A step that lasted under this share of its median before the next one started was
+    # overlapped: the steps ran side by side (parallel `depends`), so their order and
+    # their starts say nothing about how far the task is. Measured: three parallel 1-2 s
+    # steps record 0.01 s gaps, the same steps run in turn record their full length.
+    # (The parent's own median cannot tell: mise times a task's `run` without its depends.)
+    OVERLAP = 0.5
+
+    def __init__(self, parent=None, plan=None, weights=None, measured=None):
+        self.parent = parent
+        self.plan = [p for p in (plan or []) if p != parent]
+        self.weights = dict(weights or {})
+        self.measured = dict(measured or {})  # start-to-next-start, from the plan's own run
+        self.seen = []         # [name, start time] in order of first appearance
+        self.current = None    # the newest phase that is in the plan
+        self.count = None      # a fresh Progress per phase: a count belongs to its phase
+
+    @property
+    def active(self):
+        """Two or more phases, a weight for each, and phases that ran one after another."""
+        if len(self.plan) < 2 or not all(self.weights.get(p, 0) > 0 for p in self.plan):
+            return False
+        return not any(p in self.measured and self.measured[p] < self.OVERLAP * self.weights[p]
+                       for p in self.plan[:-1])
+
+    def feed(self, segment, now):
+        m = self.HEADER.match(segment)
+        if m:
+            name = m.group(1)
+            if name != self.parent and name not in (n for n, _ in self.seen):
+                self.seen.append([name, now])
+                if name in self.plan and (self.current is None
+                                          or self.plan.index(name) > self.plan.index(self.current)):
+                    self.current = name  # a phase later than expected jumps forward
+                    self.count = Progress()
+                # a header outside the plan, or an earlier one, holds the bar where it is
+            return
+        if self.count is not None:
+            self.count.feed(segment)
+
+    def value(self, now):
+        if not self.active or self.current is None:
+            # no in-plan header yet (or ever: `--output summary`, `task.quiet`, a renamed
+            # step): say nothing, so the count or the time estimate keeps the bar moving
+            return None
+        total = sum(self.weights[p] for p in self.plan)
+        i = self.plan.index(self.current)
+        done = sum(self.weights[p] for p in self.plan[:i])
+        weight = self.weights[self.current]
+        start = next(t for n, t in self.seen if n == self.current)
+        share = self.count.value if self.count.trusted else (now - start) / weight
+        share = min(self.PHASE_CAP, max(0.0, share))
+        return min(self.BAR_CAP, (done + share * weight) / total)
+
+    def observed(self, end):
+        """[[name, seconds], ...] for this run: what the next run of the task plans on."""
+        out = []
+        for k, (name, start) in enumerate(self.seen):
+            stop = self.seen[k + 1][1] if k + 1 < len(self.seen) else end
+            # floored: a step that took no measurable time still needs a weight, or the
+            # whole plan would switch off for want of one
+            out.append([name, max(0.01, round(stop - start, 2))])
+        return out
+
+
 class Stream:
     """Splits raw output into segments, holding back a half-received escape code."""
 
-    def __init__(self, progress):
+    def __init__(self, progress, phases=None, clock=None):
+        import time
         self.progress = progress
+        self.phases = phases
+        self.clock = clock or time.time
         self.pending = ""
         self.tail = ""
 
@@ -166,11 +250,16 @@ class Stream:
         parts = re.split(r"[\r\n]", self.tail + strip_escapes(text))
         self.tail = parts.pop()[-400:]
         for seg in parts:
-            self.progress.feed(seg)
+            self._segment(seg)
+
+    def _segment(self, seg):
+        self.progress.feed(seg)
+        if self.phases is not None:
+            self.phases.feed(seg, self.clock())
 
     def close(self):
         if self.tail:
-            self.progress.feed(self.tail)
+            self._segment(self.tail)
             self.tail = ""
 
 

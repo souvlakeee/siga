@@ -1,0 +1,15 @@
+[deploy] $ bash scripts/deploy.sh
+[deploy:bump] $ bun run scripts/bump-build.ts
+build 4812
+[deploy:sync] $ rsync -a --delete ./ server:/srv/app/
+sending incremental file list
+src/app.ts
+[deploy:build] $ ssh server 'cd /srv/app && bun run build'
+[build] Building client
+[vite] transforming (1/3) src/main.ts
+[vite] transforming (2/3) src/app.ts
+[vite] transforming (3/3) src/util.ts
+[build] Complete!
+[deploy:restart] $ ssh server 'systemctl restart app'
+[deploy:verify] $ curl -sf https://app.example/health
+ok: health pass

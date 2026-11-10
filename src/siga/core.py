@@ -738,22 +738,84 @@ def mise_task(command):
     return mise_run(command)[0]
 
 
-def mise_eta(task, cwd=None):
-    """Median duration in seconds of `task` from mise's own run history, or None.
+def mise_history(cwd=None):
+    """{task: median seconds} from mise's own run history, or {} on any failure.
 
     mise (2026.11.3+) records every task run, across terminals and sessions, and
     its median ignores nothing siga would have to guess at. The history is per
-    project, so it is read from `cwd` (the command's `cd` target) when given. Any
-    failure (no mise, an older mise, no runs yet, a slow answer) returns None and
-    the caller falls back to siga's own record."""
+    project, so it is read from `cwd` (the command's `cd` target) when given. No
+    mise, an older mise, no runs yet or a slow answer all give {}, and the caller
+    falls back to siga's own record."""
     import subprocess
     try:
         out = subprocess.run(["mise", "tasks", "history", "--summary", "--json"], capture_output=True,
                              text=True, timeout=2, stdin=subprocess.DEVNULL, cwd=cwd or None).stdout
-        ms = next((r.get("median_ms") for r in json.loads(out) if r.get("task") == task), None)
+        rows = json.loads(out)
+        return {r["task"]: r["median_ms"] / 1000 for r in rows
+                if isinstance(r, dict) and isinstance(r.get("task"), str)
+                and isinstance(r.get("median_ms"), (int, float)) and r["median_ms"] > 0}
     except (OSError, ValueError, TypeError, AttributeError, subprocess.SubprocessError):
-        return None
-    return ms / 1000 if isinstance(ms, (int, float)) and ms > 0 else None
+        return {}
+
+
+def mise_eta(task, cwd=None):
+    """Median duration in seconds of `task` from mise's own run history, or None."""
+    return mise_history(cwd).get(task)
+
+
+def _phase_key(task, cwd):
+    return "phases:%s@%s" % (task, os.path.abspath(os.path.expanduser(cwd or os.getcwd())))
+
+
+def phase_plan_get(task, cwd=None):
+    """[[name, seconds], ...]: the phases the last successful run of `task` went through."""
+    try:
+        plan = json.loads(HISTORY_FILE.read_text()).get(_phase_key(task, cwd), [])
+    except (OSError, ValueError):
+        return []
+    return [p for p in plan if isinstance(p, list) and len(p) == 2 and isinstance(p[0], str)]
+
+
+def phase_plan_set(task, cwd, observed):
+    """Remember the phases a successful run went through. A passed run with fewer than
+    two forgets the old plan, so a task that stopped running sub-tasks heals."""
+    if not task:
+        return
+    try:
+        data = json.loads(HISTORY_FILE.read_text())
+    except (OSError, ValueError):
+        data = {}
+    key = _phase_key(task, cwd)
+    if not observed or len(observed) < 2:
+        if data.pop(key, None) is None:
+            return
+    else:
+        data[key] = observed
+    CACHE.mkdir(parents=True, exist_ok=True)
+    HISTORY_FILE.write_text(json.dumps(data))
+
+
+def phases_park(task, cwd, observed):
+    """`siga pipe` cannot see the exit code: park the run's phases for `siga end`."""
+    doc = _pane_read()
+    if not task:
+        if doc.pop("phases", None) is not None:  # a stale park must not reach the next `end`
+            _pane_write(doc)
+        return  # a plain command: no pane write on every pipe
+    # a mise run is parked even with no phases, so a passed run can forget a stale plan
+    doc["phases"] = {"task": task, "cwd": cwd, "observed": observed or []}
+    _pane_write(doc)
+
+
+def phases_settle(rc):
+    """`siga end`: keep the parked phases as the task's plan only when the run passed."""
+    doc = _pane_read()
+    parked = doc.pop("phases", None)
+    if parked is None:
+        return
+    _pane_write(doc)
+    if rc == 0 and isinstance(parked, dict):
+        phase_plan_set(parked.get("task"), parked.get("cwd"), parked.get("observed"))
 
 
 def shim_active(slot=None, window=2.0):
@@ -771,19 +833,32 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
     from the previous run of the same command when not given).
     mise: a mise task name; its median from mise's history times the bar ahead of
     siga's own record of this command. mise_cwd: the project directory to read
-    that history in.
+    that history in. When the task's last successful run went through two or more
+    phases (`[name] $ cmd` headers), the bar moves phase by phase (parse.Phases).
+
+    Returns the phases this run went through, [[name, seconds], ...], for the caller
+    to keep as the task's plan once it knows the run passed.
     """
-    from siga.parse import Cleaner, Progress, Stream
+    from siga.parse import Cleaner, Phases, Progress, Stream
     if step and not steps and key:
         steps = history_get("steps:" + key)
     prog = Progress(step=step, steps=int(steps) if steps else None)
-    stream = Stream(prog)
+    medians = mise_history(mise_cwd) if mise else {}
+    phases = None
+    if mise:
+        plan = phase_plan_get(mise, mise_cwd)
+        measured = {name: secs for name, secs in plan if secs > 0}
+        phases = Phases(parent=mise, plan=[name for name, _ in plan],
+                        weights={**measured, **medians},  # mise's median outranks one run
+                        measured=measured)
+    stream = Stream(prog, phases=phases)
     cleaner = Cleaner() if clean else None
-    eta = (mise_eta(mise, mise_cwd) if mise else None) or (history_get(key) if key else None)
-    tee =open(os.environ["SIGA_TEE"], "ab") if os.environ.get("SIGA_TEE") else None
+    eta = medians.get(mise) or (history_get(key) if key else None)
+    tee = open(os.environ["SIGA_TEE"], "ab") if os.environ.get("SIGA_TEE") else None
     t0 = time.time()
     last_push, last_val = 0.0, None
-    push(0.0, "run", slot=slot) if eta else push(0.0, "busy", slot=slot)
+    timed = eta or (phases is not None and phases.active)
+    push(0.0, "run", slot=slot) if timed else push(0.0, "busy", slot=slot)
     while True:
         chunk = read_chunk(min_interval)
         if chunk == b"":
@@ -795,8 +870,16 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
             write_chunk(cleaner.feed(text).encode() if cleaner else chunk)
             stream.feed(text)
         now = time.time()
+        phase_val = phases.value(now) if phases is not None else None
         if prog.state == "busy":
             val, state = 0.0, "busy"
+        elif phase_val is not None:
+            # ahead of a count: one phase's `3/4` is not the whole task's progress, and
+            # Phases already maps a count into the span of the phase that printed it.
+            # Never below what is already shown: the time estimate ran before the first
+            # header, and a bar that steps back reads as something undone.
+            shown = last_val[0] if last_val and last_val[1] == "run" else 0.0
+            val, state = max(phase_val, shown), "run"
         elif prog.trusted:
             val, state = prog.value, prog.state or "run"
         elif eta:
@@ -818,12 +901,15 @@ def track(read_chunk, write_chunk, key=None, clean=False, step=None, steps=None,
         tee.close()
     if cleaner:
         write_chunk(cleaner.close().encode())
-    if prog.trusted and not shim_active(slot) and (prog.value, prog.state or "run") != last_val:
+    phased = phases is not None and phases.active
+    if not phased and prog.trusted and not shim_active(slot) and (prog.value, prog.state or "run") != last_val:
         push(prog.value, prog.state or "run", slot=slot)
+    end = time.time()
     if key:
-        history_add(key, time.time() - t0)
+        history_add(key, end - t0)
         if step and prog.steps_seen:
             history_add("steps:" + key, prog.steps_seen)
+    return phases.observed(end) if phases is not None else []
 
 
 # ---------------------------------------------------------------- running commands
